@@ -105,7 +105,7 @@ class ProfileRepository {
         userId: String,
         targetUserId: String,
         action: String
-    ): Result<Unit> {
+    ): Result<Boolean> {
         require(action == "like" || action == "skip")
 
         if (userId == targetUserId) {
@@ -128,19 +128,26 @@ class ProfileRepository {
                 "SWIPE INSERT SUCCESS userId=$userId targetUserId=$targetUserId action=$action response=$response"
             )
 
-            if (action == "like") {
+            val matchCreatedNew = if (action == "like") {
                 runCatching {
                     createMatchIfMutualLike(userId, targetUserId)
-                }.onFailure { error ->
+                }.getOrElse { error ->
                     Log.e(
                         TAG,
                         "MATCH CHECK/CREATE FAILED currentUserId=$userId targetUserId=$targetUserId message=${error.message}",
                         error
                     )
+                    false
                 }
+            } else {
+                false
             }
+            Log.d(
+                TAG,
+                "MATCH RESULT currentUserId=$userId targetUserId=$targetUserId matchCreatedNew=$matchCreatedNew"
+            )
 
-            Result.success(Unit)
+            Result.success(matchCreatedNew)
         } catch (e: Exception) {
             val failure = if (e.isDuplicateKeyViolation()) DuplicateSwipeException() else e
             Log.e(
@@ -191,10 +198,13 @@ class ProfileRepository {
         }
     }
 
-    private suspend fun createMatchIfMutualLike(currentUserId: String, targetUserId: String) {
+    private suspend fun createMatchIfMutualLike(
+        currentUserId: String,
+        targetUserId: String
+    ): Boolean {
         if (currentUserId == targetUserId) {
             Log.d(TAG, "MATCH CREATE skipped because user cannot match with self userId=$currentUserId")
-            return
+            return false
         }
 
         val pair = normalizePair(currentUserId, targetUserId)
@@ -217,7 +227,7 @@ class ProfileRepository {
                 TAG,
                 "MATCH CHECK mutualLikeFound=true matchCreated=false reason=existing_match matchId=${existingMatch.id}"
             )
-            return
+            return false
         }
 
         val reciprocalLikeExists = client.postgrest["swipes"]
@@ -236,7 +246,7 @@ class ProfileRepository {
         )
 
         if (!reciprocalLikeExists) {
-            return
+            return false
         }
 
         val response = client.postgrest["matches"].upsert(
@@ -252,6 +262,7 @@ class ProfileRepository {
             TAG,
             "MATCH CREATE currentUserId=$currentUserId targetUserId=$targetUserId matchCreated=true response=$response"
         )
+        return true
     }
 
     private suspend fun loadMatchRows(userId: String): List<MatchRow> {
@@ -268,7 +279,7 @@ class ProfileRepository {
                 filter {
                     eq("user2_id", userId)
                 }
-            }1
+            }
             .decodeList<MatchRow>()
 
         return (byUser1 + byUser2)

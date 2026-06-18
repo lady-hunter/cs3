@@ -24,7 +24,7 @@ class MatchesFragment : Fragment() {
 
     private val profileRepository = ProfileRepository()
     private val supabase = SupabaseManager.client
-    private val adapter = MatchAdapter { openChat() }
+    private val adapter = MatchAdapter { match -> openChat(match.otherUserId) }
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyView: TextView
@@ -107,8 +107,11 @@ class MatchesFragment : Fragment() {
         }
     }
 
-    private fun openChat() {
-        startActivity(Intent(requireContext(), ChatActivity::class.java))
+    private fun openChat(matchedUserId: String) {
+        val intent = Intent(requireContext(), ChatActivity::class.java).apply {
+            putExtra(ChatActivity.EXTRA_MATCHED_USER_ID, matchedUserId)
+        }
+        startActivity(intent)
     }
 
     override fun onDestroyView() {

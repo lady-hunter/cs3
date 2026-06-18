@@ -41,6 +41,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var btnSend: Button
     private lateinit var btnLogout: Button
     private lateinit var currentUserId: String
+    private lateinit var matchedUserId: String
     
     private val supabase = SupabaseManager.client
 
@@ -58,6 +59,17 @@ class ChatActivity : AppCompatActivity() {
             return
         }
         currentUserId = userId
+
+        val selectedUserId = intent.getStringExtra(EXTRA_MATCHED_USER_ID)
+        if (selectedUserId.isNullOrBlank()) {
+            Log.e(TAG, "Cannot open chat: matchedUserId is missing")
+            Toast.makeText(this, "Unable to open this chat", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+        matchedUserId = selectedUserId
+        Log.d(TAG, "currentUserId=$currentUserId")
+        Log.d(TAG, "matchedUserId=$matchedUserId")
 
         setContentView(R.layout.activity_chat)
 
@@ -136,10 +148,24 @@ class ChatActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val messages = supabase.postgrest["messages"]
-                    .select()
+                    .select {
+                        filter {
+                            or {
+                                and {
+                                    eq("sender_id", currentUserId)
+                                    eq("receiver_id", matchedUserId)
+                                }
+                                and {
+                                    eq("sender_id", matchedUserId)
+                                    eq("receiver_id", currentUserId)
+                                }
+                            }
+                        }
+                    }
                     .decodeList<Message>()
                     .sortedBy { it.id }
 
+                Log.d(TAG, "loaded message count=${messages.size}")
                 val senderNames = loadSenderNames(messages.map { it.sender_id }.distinct())
                 adapter.submitList(messages, senderNames)
                 if (messages.isNotEmpty()) {
@@ -194,10 +220,11 @@ class ChatActivity : AppCompatActivity() {
             try {
                 val message = Message(
                     content = content,
-                    sender_id = currentUserId
+                    sender_id = currentUserId,
+                    receiver_id = matchedUserId
                 )
                 supabase.postgrest["messages"].insert(message)
-                Log.d(TAG, "MESSAGE SENT SUCCESS senderId=$currentUserId")
+                Log.d(TAG, "MESSAGE SENT SUCCESS senderId=$currentUserId receiver_id=$matchedUserId")
                 etMessage.text.clear()
                 Log.d(TAG, "MESSAGE RELOAD AFTER SEND")
                 loadMessages()
@@ -221,8 +248,9 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    private companion object {
-        const val TAG = "ChatActivity"
-        val COMMON_EMOJIS = listOf("❤️", "😂", "😊", "😍", "👍", "🎉")
+    companion object {
+        const val EXTRA_MATCHED_USER_ID = "matched_user_id"
+        private const val TAG = "ChatActivity"
+        private val COMMON_EMOJIS = listOf("❤️", "😂", "😊", "😍", "👍", "🎉")
     }
 }

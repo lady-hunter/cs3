@@ -1,21 +1,26 @@
 package com.example.date_chat2.ui.main.swipe
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
 import com.example.date_chat2.R
 import com.example.date_chat2.data.model.Profile
 import com.example.date_chat2.data.repository.DuplicateSwipeException
 import com.example.date_chat2.data.repository.ProfileRepository
 import com.example.date_chat2.network.SupabaseManager
+import com.example.date_chat2.ui.chat.ChatActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yuyakaido.android.cardstackview.CardStackLayoutManager
 import com.yuyakaido.android.cardstackview.CardStackListener
 import com.yuyakaido.android.cardstackview.CardStackView
@@ -134,13 +139,20 @@ class SwipeFragment : Fragment(), CardStackListener {
                 "SWIPE SAVE start currentUserId=$userId targetUserId=${profile.id} action=$action"
             )
             profileRepository.saveSwipeAction(userId, profile.id, action)
-                .onSuccess {
+                .onSuccess { matchCreatedNew ->
                     Log.d(
                         TAG,
                         "SWIPE SAVE success currentUserId=$userId targetUserId=${profile.id} action=$action"
                     )
+                    Log.d(
+                        TAG,
+                        "MATCH RESULT targetUserId=${profile.id} matchCreatedNew=$matchCreatedNew"
+                    )
                     setActionButtonsEnabled(true)
                     updateEmptyState()
+                    if (matchCreatedNew && isAdded && view != null) {
+                        showMatchPopup(profile)
+                    }
                 }
                 .onFailure { error ->
                     Log.e(
@@ -163,6 +175,42 @@ class SwipeFragment : Fragment(), CardStackListener {
                     }
                 }
         }
+    }
+
+    private fun showMatchPopup(profile: Profile) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_match, null)
+        val avatarView = dialogView.findViewById<ImageView>(R.id.iv_match_popup_avatar)
+        val subtitleView = dialogView.findViewById<TextView>(R.id.tv_match_popup_subtitle)
+        val sendMessageButton = dialogView.findViewById<Button>(R.id.btn_match_send_message)
+        val keepSwipingButton = dialogView.findViewById<Button>(R.id.btn_match_keep_swiping)
+        val matchedName = profile.full_name?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.unknown_name)
+
+        subtitleView.text = "You and $matchedName liked each other."
+        Glide.with(this)
+            .load(profile.avatar_url)
+            .placeholder(android.R.drawable.ic_menu_gallery)
+            .error(android.R.drawable.ic_menu_gallery)
+            .circleCrop()
+            .into(avatarView)
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setView(dialogView)
+            .create()
+
+        sendMessageButton.setOnClickListener {
+            Log.d(TAG, "MATCH POPUP sendMessageClicked targetUserId=${profile.id}")
+            dialog.dismiss()
+            startActivity(
+                Intent(requireContext(), ChatActivity::class.java)
+                    .putExtra(EXTRA_MATCHED_USER_ID, profile.id)
+                    .putExtra(EXTRA_MATCHED_USER_NAME, matchedName)
+            )
+        }
+        keepSwipingButton.setOnClickListener { dialog.dismiss() }
+
+        dialog.show()
+        Log.d(TAG, "MATCH POPUP popupShown targetUserId=${profile.id}")
     }
 
     private fun setLoading(isLoading: Boolean) {
@@ -223,5 +271,7 @@ class SwipeFragment : Fragment(), CardStackListener {
 
     private companion object {
         const val TAG = "SwipeFragment"
+        const val EXTRA_MATCHED_USER_ID = "matched_user_id"
+        const val EXTRA_MATCHED_USER_NAME = "matched_user_name"
     }
 }
