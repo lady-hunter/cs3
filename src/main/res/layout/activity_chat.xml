@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/chat_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/app_background">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
@@ -31,15 +33,25 @@
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_messages"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:paddingStart="8dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp"
         app:layout_constraintBottom_toTopOf="@id/layout_input"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
     <LinearLayout
         android:id="@+id/layout_input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@color/white"
+        android:elevation="8dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
         android:padding="8dp"
         app:layout_constraintBottom_toBottomOf="parent">
@@ -49,7 +61,11 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:hint="Type a message..." />
+            android:hint="Type a message..."
+            android:imeOptions="actionSend"
+            android:inputType="textCapSentences|textMultiLine"
+            android:maxLines="4"
+            android:minHeight="48dp" />
 
         <Button
             android:id="@+id/btn_send"

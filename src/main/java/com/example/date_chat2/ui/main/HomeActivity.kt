@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.example.date_chat2.R
+import com.example.date_chat2.ui.main.matches.MatchesFragment
 import com.example.date_chat2.ui.main.swipe.SwipeFragment
 import com.google.android.material.bottomnavigation.BottomNavigationView
 
@@ -22,7 +23,7 @@ class HomeActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_matches -> {
-                    // replaceFragment(MatchesFragment())
+                    replaceFragment(MatchesFragment())
                     true
                 }
                 R.id.nav_profile -> {

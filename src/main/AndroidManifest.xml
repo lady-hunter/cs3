@@ -27,7 +27,9 @@
 
         <activity android:name=".ui.auth.ProfileSetupActivity" />
         <activity android:name=".ui.auth.RegisterActivity" />
-        <activity android:name=".ui.chat.ChatActivity" />
+        <activity
+            android:name=".ui.chat.ChatActivity"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.main.HomeActivity" />
     </application>
 

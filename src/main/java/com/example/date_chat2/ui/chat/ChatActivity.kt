@@ -2,19 +2,27 @@ package com.example.date_chat2.ui.chat
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.date_chat2.R
 import com.example.date_chat2.data.Message
+import com.example.date_chat2.data.model.Profile
 import com.example.date_chat2.network.SupabaseManager
 import com.example.date_chat2.ui.main.MainActivity
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -36,6 +44,7 @@ class ChatActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val userId = supabase.auth.currentSessionOrNull()?.user?.id
         if (userId == null) {
@@ -55,6 +64,7 @@ class ChatActivity : AppCompatActivity() {
         btnSend = findViewById(R.id.btn_send)
         btnLogout = findViewById(R.id.btn_logout)
 
+        setupWindowInsets()
         setupRecyclerView()
         loadMessages()
         observeMessages()
@@ -69,6 +79,28 @@ class ChatActivity : AppCompatActivity() {
         btnLogout.setOnClickListener {
             logout()
         }
+    }
+
+    private fun setupWindowInsets() {
+        val root = findViewById<View>(R.id.chat_root)
+        val inputLayout = findViewById<View>(R.id.layout_input)
+
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+
+            view.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
+
+            val bottomMargin = maxOf(imeBottom, systemBars.bottom)
+            val layoutParams = inputLayout.layoutParams as ViewGroup.MarginLayoutParams
+            if (layoutParams.bottomMargin != bottomMargin) {
+                layoutParams.bottomMargin = bottomMargin
+                inputLayout.layoutParams = layoutParams
+            }
+
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
     }
 
     private fun setupRecyclerView() {
@@ -86,14 +118,38 @@ class ChatActivity : AppCompatActivity() {
                     .select()
                     .decodeList<Message>()
                     .sortedBy { it.id }
-                
-                adapter.submitList(messages)
+
+                val senderNames = loadSenderNames(messages.map { it.sender_id }.distinct())
+                adapter.submitList(messages, senderNames)
                 if (messages.isNotEmpty()) {
                     rvMessages.scrollToPosition(messages.size - 1)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    private suspend fun loadSenderNames(senderIds: List<String>): Map<String, String> {
+        if (senderIds.isEmpty()) return emptyMap()
+
+        return try {
+            supabase.postgrest["profiles"]
+                .select(columns = Columns.list("id", "full_name")) {
+                    filter {
+                        isIn("id", senderIds)
+                    }
+                }
+                .decodeList<Profile>()
+                .mapNotNull { profile ->
+                    profile.full_name
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { profile.id to it }
+                }
+                .toMap()
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to load sender profile names", error)
+            emptyMap()
         }
     }
 
@@ -139,5 +195,9 @@ class ChatActivity : AppCompatActivity() {
                 Toast.makeText(this@ChatActivity, "Logout failed", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "ChatActivity"
     }
 }

@@ -82,6 +82,13 @@ class SwipeFragment : Fragment(), CardStackListener {
             profileRepository.getProfilesForSwiping(userId)
                 .onSuccess { loadedProfiles ->
                     Log.d(TAG, "SWIPE LOAD profilesLoaded=${loadedProfiles.size}")
+                    loadedProfiles.forEach { profile ->
+                        Log.d(
+                            TAG,
+                            "SWIPE PROFILE id=${profile.id} full_name=${profile.full_name} " +
+                                "avatar_url=${profile.avatar_url} bio=${profile.bio}"
+                        )
+                    }
                     profiles.clear()
                     profiles.addAll(loadedProfiles)
                     cardStackView?.adapter = ProfileCardAdapter(profiles)
@@ -113,7 +120,11 @@ class SwipeFragment : Fragment(), CardStackListener {
         val swipedPosition = (layoutManager?.topPosition ?: return) - 1
         val profile = profiles.getOrNull(swipedPosition) ?: return
         val userId = currentUserId ?: return
-        val action = if (direction == Direction.Right) "like" else "skip"
+        val action = when (direction) {
+            Direction.Right -> "like"
+            Direction.Left -> "skip"
+            else -> return
+        }
 
         if (view == null) return
         viewLifecycleOwner.lifecycleScope.launch {

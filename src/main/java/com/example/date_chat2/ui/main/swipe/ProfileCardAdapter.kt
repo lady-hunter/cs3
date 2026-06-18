@@ -1,5 +1,7 @@
 package com.example.date_chat2.ui.main.swipe
 
+import android.graphics.drawable.Drawable
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -7,6 +9,10 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
 import com.example.date_chat2.R
 import com.example.date_chat2.data.model.Profile
 import java.time.LocalDate
@@ -41,10 +47,40 @@ class ProfileCardAdapter(
             bio.text = profile.bio?.takeIf { it.isNotBlank() }
                 ?: itemView.context.getString(R.string.no_bio)
 
+            val avatarUrl = profile.avatar_url?.trim()?.takeIf { it.isNotEmpty() }
+            if (avatarUrl == null) {
+                Glide.with(itemView).clear(avatar)
+                avatar.setImageResource(PLACEHOLDER_RES_ID)
+                return
+            }
+
             Glide.with(itemView)
-                .load(profile.avatar_url)
-                .placeholder(android.R.drawable.ic_menu_gallery)
-                .error(android.R.drawable.ic_menu_gallery)
+                .load(avatarUrl)
+                .placeholder(PLACEHOLDER_RES_ID)
+                .error(PLACEHOLDER_RES_ID)
+                .listener(object : RequestListener<Drawable> {
+                    override fun onLoadFailed(
+                        e: GlideException?,
+                        model: Any?,
+                        target: Target<Drawable>,
+                        isFirstResource: Boolean
+                    ): Boolean {
+                        Log.e(
+                            TAG,
+                            "SWIPE AVATAR LOAD FAILED profileId=${profile.id} avatarUrl=$avatarUrl",
+                            e
+                        )
+                        return false
+                    }
+
+                    override fun onResourceReady(
+                        resource: Drawable,
+                        model: Any,
+                        target: Target<Drawable>?,
+                        dataSource: DataSource,
+                        isFirstResource: Boolean
+                    ): Boolean = false
+                })
                 .centerCrop()
                 .into(avatar)
         }
@@ -56,6 +92,11 @@ class ProfileCardAdapter(
             } catch (_: Exception) {
                 null
             }
+        }
+
+        private companion object {
+            const val TAG = "ProfileCardAdapter"
+            const val PLACEHOLDER_RES_ID = android.R.drawable.ic_menu_gallery
         }
     }
 }

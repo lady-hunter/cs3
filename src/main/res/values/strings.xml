@@ -8,10 +8,13 @@
     <string name="like">Like</string>
     <string name="skip">Skip</string>
     <string name="no_profiles">No profiles are available right now.</string>
+    <string name="no_matches">No matches yet.</string>
     <string name="profiles_load_failed">Could not load profiles. Please try again later.</string>
+    <string name="matches_load_failed">Could not load matches. Please try again later.</string>
     <string name="swipe_save_failed">Could not save this action. Check the Supabase swipes table and policies.</string>
     <string name="session_expired">Session expired. Please log in again.</string>
     <string name="unknown_name">Unknown</string>
+    <string name="unknown_user">Unknown User</string>
     <string name="no_bio">No bio yet.</string>
     <string name="tagline">Find your match today</string>
     <string name="email">Email</string>

@@ -14,9 +14,11 @@ class MessageAdapter(private val currentUserId: String) :
     RecyclerView.Adapter<MessageAdapter.MessageViewHolder>() {
 
     private var messages = listOf<Message>()
+    private var senderNames = emptyMap<String, String>()
 
-    fun submitList(newList: List<Message>) {
+    fun submitList(newList: List<Message>, newSenderNames: Map<String, String>) {
         messages = newList
+        senderNames = newSenderNames
         notifyDataSetChanged()
     }
 
@@ -48,7 +50,8 @@ class MessageAdapter(private val currentUserId: String) :
             } else {
                 layoutRoot.gravity = Gravity.START
                 tvSender.visibility = View.VISIBLE
-                tvSender.text = "User: ${message.sender_id.take(5)}"
+                tvSender.text = senderNames[message.sender_id]
+                    ?: itemView.context.getString(R.string.unknown_user)
                 tvContent.setBackgroundResource(android.R.drawable.editbox_dropdown_dark_frame)
             }
         }
