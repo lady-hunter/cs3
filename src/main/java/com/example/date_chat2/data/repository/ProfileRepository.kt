@@ -268,7 +268,7 @@ class ProfileRepository {
                 filter {
                     eq("user2_id", userId)
                 }
-            }
+            }1
             .decodeList<MatchRow>()
 
         return (byUser1 + byUser2)

@@ -9,6 +9,10 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.date_chat2.R
 import com.example.date_chat2.data.Message
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class MessageAdapter(private val currentUserId: String) : 
     RecyclerView.Adapter<MessageAdapter.MessageViewHolder>() {
@@ -38,22 +42,43 @@ class MessageAdapter(private val currentUserId: String) :
     inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvSender: TextView = itemView.findViewById(R.id.tv_sender)
         private val tvContent: TextView = itemView.findViewById(R.id.tv_content)
+        private val tvTimestamp: TextView = itemView.findViewById(R.id.tv_timestamp)
         private val layoutRoot: LinearLayout = itemView as LinearLayout
 
         fun bind(message: Message) {
             tvContent.text = message.content
+            tvContent.maxWidth = (itemView.resources.displayMetrics.widthPixels * 0.75f).toInt()
+            tvTimestamp.text = formatMessageTime(message.created_at)
+            tvTimestamp.visibility = if (tvTimestamp.text.isEmpty()) View.GONE else View.VISIBLE
             
             if (message.sender_id == currentUserId) {
                 layoutRoot.gravity = Gravity.END
                 tvSender.visibility = View.GONE
-                tvContent.setBackgroundResource(android.R.drawable.editbox_dropdown_light_frame)
+                tvContent.setBackgroundResource(R.drawable.bg_message_mine)
+                tvContent.setTextColor(itemView.context.getColor(R.color.white))
             } else {
                 layoutRoot.gravity = Gravity.START
                 tvSender.visibility = View.VISIBLE
                 tvSender.text = senderNames[message.sender_id]
                     ?: itemView.context.getString(R.string.unknown_user)
-                tvContent.setBackgroundResource(android.R.drawable.editbox_dropdown_dark_frame)
+                tvContent.setBackgroundResource(R.drawable.bg_message_other)
+                tvContent.setTextColor(itemView.context.getColor(R.color.text_primary))
             }
         }
+
+        private fun formatMessageTime(createdAt: String?): String {
+            if (createdAt.isNullOrBlank()) return ""
+
+            val instant = runCatching { Instant.parse(createdAt) }.getOrNull()
+                ?: runCatching { OffsetDateTime.parse(createdAt).toInstant() }.getOrNull()
+                ?: return ""
+            return TIME_FORMATTER.format(instant)
+        }
+    }
+
+    private companion object {
+        val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter
+            .ofPattern("HH:mm")
+            .withZone(ZoneId.systemDefault())
     }
 }
