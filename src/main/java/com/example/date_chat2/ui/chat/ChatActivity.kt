@@ -1,14 +1,18 @@
 package com.example.date_chat2.ui.chat
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.webkit.MimeTypeMap
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.PopupMenu
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -28,9 +32,11 @@ import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class ChatActivity : AppCompatActivity() {
 
@@ -38,12 +44,16 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var rvMessages: RecyclerView
     private lateinit var etMessage: EditText
     private lateinit var btnEmoji: Button
+    private lateinit var btnImage: ImageButton
     private lateinit var btnSend: Button
     private lateinit var btnLogout: Button
     private lateinit var currentUserId: String
     private lateinit var matchedUserId: String
     
     private val supabase = SupabaseManager.client
+    private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let(::sendImage)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,6 +86,7 @@ class ChatActivity : AppCompatActivity() {
         rvMessages = findViewById(R.id.rv_messages)
         etMessage = findViewById(R.id.et_message)
         btnEmoji = findViewById(R.id.btn_emoji)
+        btnImage = findViewById(R.id.btn_image)
         btnSend = findViewById(R.id.btn_send)
         btnLogout = findViewById(R.id.btn_logout)
 
@@ -85,6 +96,7 @@ class ChatActivity : AppCompatActivity() {
         observeMessages()
 
         btnEmoji.setOnClickListener { showEmojiPicker() }
+        btnImage.setOnClickListener { imagePicker.launch("image/*") }
 
         btnSend.setOnClickListener {
             val content = etMessage.text.toString().trim()
@@ -221,7 +233,8 @@ class ChatActivity : AppCompatActivity() {
                 val message = Message(
                     content = content,
                     sender_id = currentUserId,
-                    receiver_id = matchedUserId
+                    receiver_id = matchedUserId,
+                    message_type = MESSAGE_TYPE_TEXT
                 )
                 supabase.postgrest["messages"].insert(message)
                 Log.d(TAG, "MESSAGE SENT SUCCESS senderId=$currentUserId receiver_id=$matchedUserId")
@@ -248,9 +261,53 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun sendImage(uri: Uri) {
+        lifecycleScope.launch {
+            btnImage.isEnabled = false
+            try {
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("Unable to read selected image")
+                val extension = MimeTypeMap.getSingleton()
+                    .getExtensionFromMimeType(contentResolver.getType(uri))
+                    ?: "jpg"
+                val imagePath = "$currentUserId/${UUID.randomUUID()}.$extension"
+                val bucket = supabase.storage[CHAT_IMAGES_BUCKET]
+
+                bucket.upload(imagePath, bytes)
+                val imageUrl = bucket.publicUrl(imagePath)
+                val message = Message(
+                    content = "",
+                    sender_id = currentUserId,
+                    receiver_id = matchedUserId,
+                    image_url = imageUrl,
+                    message_type = MESSAGE_TYPE_IMAGE
+                )
+                supabase.postgrest["messages"].insert(message)
+                Log.d(TAG, "IMAGE MESSAGE SENT receiver_id=$matchedUserId imagePath=$imagePath")
+                loadMessages()
+            } catch (error: Exception) {
+                Log.e(
+                    TAG,
+                    "IMAGE MESSAGE FAILED receiver_id=$matchedUserId message=${error.message}",
+                    error
+                )
+                Toast.makeText(
+                    this@ChatActivity,
+                    "Could not send image. Please try again.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                btnImage.isEnabled = true
+            }
+        }
+    }
+
     companion object {
         const val EXTRA_MATCHED_USER_ID = "matched_user_id"
         private const val TAG = "ChatActivity"
+        private const val CHAT_IMAGES_BUCKET = "chat-images"
+        private const val MESSAGE_TYPE_TEXT = "text"
+        private const val MESSAGE_TYPE_IMAGE = "image"
         private val COMMON_EMOJIS = listOf("❤️", "😂", "😊", "😍", "👍", "🎉")
     }
 }

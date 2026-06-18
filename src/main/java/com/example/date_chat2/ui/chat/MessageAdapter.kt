@@ -5,8 +5,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.date_chat2.R
 import com.example.date_chat2.data.Message
 import java.time.Instant
@@ -42,12 +44,26 @@ class MessageAdapter(private val currentUserId: String) :
     inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvSender: TextView = itemView.findViewById(R.id.tv_sender)
         private val tvContent: TextView = itemView.findViewById(R.id.tv_content)
+        private val ivImage: ImageView = itemView.findViewById(R.id.iv_message_image)
         private val tvTimestamp: TextView = itemView.findViewById(R.id.tv_timestamp)
         private val layoutRoot: LinearLayout = itemView as LinearLayout
 
         fun bind(message: Message) {
+            val isImage = message.message_type == MESSAGE_TYPE_IMAGE && !message.image_url.isNullOrBlank()
+            tvContent.visibility = if (isImage) View.GONE else View.VISIBLE
+            ivImage.visibility = if (isImage) View.VISIBLE else View.GONE
             tvContent.text = message.content
             tvContent.maxWidth = (itemView.resources.displayMetrics.widthPixels * 0.75f).toInt()
+            if (isImage) {
+                Glide.with(itemView)
+                    .load(message.image_url)
+                    .placeholder(android.R.drawable.ic_menu_gallery)
+                    .error(android.R.drawable.ic_menu_report_image)
+                    .centerCrop()
+                    .into(ivImage)
+            } else {
+                Glide.with(itemView).clear(ivImage)
+            }
             tvTimestamp.text = formatMessageTime(message.created_at)
             tvTimestamp.visibility = if (tvTimestamp.text.isEmpty()) View.GONE else View.VISIBLE
             
@@ -55,6 +71,7 @@ class MessageAdapter(private val currentUserId: String) :
                 layoutRoot.gravity = Gravity.END
                 tvSender.visibility = View.GONE
                 tvContent.setBackgroundResource(R.drawable.bg_message_mine)
+                ivImage.setBackgroundResource(R.drawable.bg_message_mine)
                 tvContent.setTextColor(itemView.context.getColor(R.color.white))
             } else {
                 layoutRoot.gravity = Gravity.START
@@ -62,6 +79,7 @@ class MessageAdapter(private val currentUserId: String) :
                 tvSender.text = senderNames[message.sender_id]
                     ?: itemView.context.getString(R.string.unknown_user)
                 tvContent.setBackgroundResource(R.drawable.bg_message_other)
+                ivImage.setBackgroundResource(R.drawable.bg_message_other)
                 tvContent.setTextColor(itemView.context.getColor(R.color.text_primary))
             }
         }
@@ -77,6 +95,7 @@ class MessageAdapter(private val currentUserId: String) :
     }
 
     private companion object {
+        const val MESSAGE_TYPE_IMAGE = "image"
         val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter
             .ofPattern("HH:mm")
             .withZone(ZoneId.systemDefault())

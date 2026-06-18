@@ -68,6 +68,15 @@
             android:textAllCaps="false"
             android:textSize="20sp" />
 
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_image"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:backgroundTint="?attr/colorPrimary"
+            android:contentDescription="Choose image"
+            android:padding="12dp"
+            app:srcCompat="@drawable/ic_add_photo" />
+
         <EditText
             android:id="@+id/et_message"
             android:layout_width="0dp"

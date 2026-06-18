@@ -29,6 +29,15 @@
         android:paddingBottom="8dp"
         android:textSize="16sp" />
 
+    <ImageView
+        android:id="@+id/iv_message_image"
+        android:layout_width="220dp"
+        android:layout_height="180dp"
+        android:contentDescription="Chat image"
+        android:padding="3dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/tv_timestamp"
         android:layout_width="wrap_content"
