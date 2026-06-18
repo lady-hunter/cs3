@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Date Chat 2</string>
+    <string name="login_title">Date Chat 2</string>
+    <string name="login_with_phone">LOG IN WITH PHONE NUMBER</string>
+    <string name="login_with_email">LOG IN WITH EMAIL</string>
+    <string name="trouble_logging_in">Trouble Logging In?</string>
+    <string name="terms_and_privacy">By clicking Log In, you agree with our Terms. Learn how we process your data in our Privacy Policy and Cookies Policy.</string>
+</resources>

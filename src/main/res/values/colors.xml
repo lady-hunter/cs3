@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="tinder_pink">#FD297B</color>
+    <color name="tinder_orange">#FF5864</color>
+    <color name="tinder_light_orange">#FF6B6B</color>
+    <color name="gray">#808080</color>
+    <color name="colorAccent">#FD297B</color>
+</resources>
