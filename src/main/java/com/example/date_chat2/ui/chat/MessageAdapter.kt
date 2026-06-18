@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.date_chat2.R
@@ -61,8 +62,12 @@ class MessageAdapter(private val currentUserId: String) :
                     .error(android.R.drawable.ic_menu_report_image)
                     .centerCrop()
                     .into(ivImage)
+                ivImage.setOnClickListener {
+                    openImagePreview(message.image_url)
+                }
             } else {
                 Glide.with(itemView).clear(ivImage)
+                ivImage.setOnClickListener(null)
             }
             tvTimestamp.text = formatMessageTime(message.created_at)
             tvTimestamp.visibility = if (tvTimestamp.text.isEmpty()) View.GONE else View.VISIBLE
@@ -70,6 +75,7 @@ class MessageAdapter(private val currentUserId: String) :
             if (message.sender_id == currentUserId) {
                 layoutRoot.gravity = Gravity.END
                 tvSender.visibility = View.GONE
+                tvTimestamp.gravity = Gravity.END
                 tvContent.setBackgroundResource(R.drawable.bg_message_mine)
                 ivImage.setBackgroundResource(R.drawable.bg_message_mine)
                 tvContent.setTextColor(itemView.context.getColor(R.color.white))
@@ -78,10 +84,21 @@ class MessageAdapter(private val currentUserId: String) :
                 tvSender.visibility = View.VISIBLE
                 tvSender.text = senderNames[message.sender_id]
                     ?: itemView.context.getString(R.string.unknown_user)
+                tvTimestamp.gravity = Gravity.START
                 tvContent.setBackgroundResource(R.drawable.bg_message_other)
                 ivImage.setBackgroundResource(R.drawable.bg_message_other)
                 tvContent.setTextColor(itemView.context.getColor(R.color.text_primary))
             }
+        }
+
+        private fun openImagePreview(imageUrl: String?) {
+            if (imageUrl.isNullOrBlank()) return
+            val activity = itemView.context as? FragmentActivity ?: return
+            if (activity.supportFragmentManager.findFragmentByTag(ImagePreviewDialogFragment.TAG) != null) {
+                return
+            }
+            ImagePreviewDialogFragment.newInstance(imageUrl)
+                .show(activity.supportFragmentManager, ImagePreviewDialogFragment.TAG)
         }
 
         private fun formatMessageTime(createdAt: String?): String {

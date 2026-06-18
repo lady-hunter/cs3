@@ -4,13 +4,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.webkit.MimeTypeMap
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.GridLayout
 import android.widget.ImageButton
-import android.widget.PopupMenu
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -36,6 +38,8 @@ import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 
 class ChatActivity : AppCompatActivity() {
@@ -46,6 +50,8 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var btnEmoji: Button
     private lateinit var btnImage: ImageButton
     private lateinit var btnSend: Button
+    private lateinit var emojiPanel: View
+    private lateinit var emojiGrid: GridLayout
     private lateinit var btnLogout: Button
     private lateinit var currentUserId: String
     private lateinit var matchedUserId: String
@@ -88,14 +94,17 @@ class ChatActivity : AppCompatActivity() {
         btnEmoji = findViewById(R.id.btn_emoji)
         btnImage = findViewById(R.id.btn_image)
         btnSend = findViewById(R.id.btn_send)
+        emojiPanel = findViewById(R.id.emoji_panel)
+        emojiGrid = findViewById(R.id.emoji_grid)
         btnLogout = findViewById(R.id.btn_logout)
 
         setupWindowInsets()
+        setupEmojiPanel()
         setupRecyclerView()
         loadMessages()
         observeMessages()
 
-        btnEmoji.setOnClickListener { showEmojiPicker() }
+        btnEmoji.setOnClickListener { toggleEmojiPanel() }
         btnImage.setOnClickListener { imagePicker.launch("image/*") }
 
         btnSend.setOnClickListener {
@@ -110,20 +119,44 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun showEmojiPicker() {
-        PopupMenu(this, btnEmoji).apply {
-            COMMON_EMOJIS.forEachIndexed { index, emoji ->
-                menu.add(0, index, index, emoji)
+    private fun setupEmojiPanel() {
+        val selectableBackground = TypedValue().also {
+            theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true)
+        }.resourceId
+        val itemHeight = (48 * resources.displayMetrics.density).toInt()
+
+        COMMON_EMOJIS.forEach { emoji ->
+            val emojiView = TextView(this).apply {
+                text = emoji
+                textSize = 24f
+                gravity = android.view.Gravity.CENTER
+                contentDescription = emoji
+                if (selectableBackground != 0) {
+                    setBackgroundResource(selectableBackground)
+                }
+                setOnClickListener { insertEmoji(emoji) }
             }
-            setOnMenuItemClickListener { item ->
-                val emoji = COMMON_EMOJIS[item.itemId]
-                val cursorPosition = etMessage.selectionStart.coerceAtLeast(0)
-                etMessage.text.insert(cursorPosition, emoji)
-                etMessage.requestFocus()
-                true
-            }
-            show()
+            emojiGrid.addView(
+                emojiView,
+                GridLayout.LayoutParams().apply {
+                    width = 0
+                    height = itemHeight
+                    columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                }
+            )
         }
+    }
+
+    private fun toggleEmojiPanel() {
+        emojiPanel.visibility = if (emojiPanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+    }
+
+    private fun insertEmoji(emoji: String) {
+        val editable = etMessage.text
+        val cursorPosition = etMessage.selectionStart.takeIf { it >= 0 } ?: editable.length
+        editable.insert(cursorPosition, emoji)
+        etMessage.setSelection(cursorPosition + emoji.length)
+        etMessage.requestFocus()
     }
 
     private fun setupWindowInsets() {
@@ -175,7 +208,10 @@ class ChatActivity : AppCompatActivity() {
                         }
                     }
                     .decodeList<Message>()
-                    .sortedBy { it.id }
+                    .sortedWith(
+                        compareBy<Message> { parseMessageInstant(it.created_at) ?: Instant.EPOCH }
+                            .thenBy { it.id ?: Long.MIN_VALUE }
+                    )
 
                 Log.d(TAG, "loaded message count=${messages.size}")
                 val senderNames = loadSenderNames(messages.map { it.sender_id }.distinct())
@@ -225,6 +261,12 @@ class ChatActivity : AppCompatActivity() {
         lifecycleScope.launch {
             channel.subscribe()
         }
+    }
+
+    private fun parseMessageInstant(createdAt: String?): Instant? {
+        if (createdAt.isNullOrBlank()) return null
+        return runCatching { Instant.parse(createdAt) }.getOrNull()
+            ?: runCatching { OffsetDateTime.parse(createdAt).toInstant() }.getOrNull()
     }
 
     private fun sendMessage(content: String) {
@@ -308,6 +350,31 @@ class ChatActivity : AppCompatActivity() {
         private const val CHAT_IMAGES_BUCKET = "chat-images"
         private const val MESSAGE_TYPE_TEXT = "text"
         private const val MESSAGE_TYPE_IMAGE = "image"
-        private val COMMON_EMOJIS = listOf("❤️", "😂", "😊", "😍", "👍", "🎉")
+        private val COMMON_EMOJIS = listOf(
+            "😀", "😃", "😄", "😁", "😆", "😅",
+            "😂", "🤣", "😊", "😇", "🙂", "🙃",
+            "😉", "😌", "😍", "🥰", "😘", "😗",
+            "😙", "😚", "😋", "😛", "😝", "😜",
+            "🤪", "🤨", "🧐", "🤓", "😎", "🤩",
+            "🥳", "😏", "😒", "😞", "😔", "😟",
+            "😕", "🙁", "☹️", "😣", "😖", "😫",
+            "😩", "🥺", "😢", "😭", "😤", "😠",
+            "😡", "🤬", "🤯", "😳", "🥵", "🥶",
+            "😱", "😨", "😰", "😥", "😓", "🤗",
+            "🤔", "🤭", "🤫", "🤥", "😶", "😐",
+            "😑", "😬", "🙄", "😯", "😦", "😧",
+            "😮", "😲", "🥱", "😴", "🤤", "😪",
+            "😵", "🤐", "🤢", "🤮", "🤧", "😷",
+            "🤒", "🤕", "👍", "👎", "👌", "✌️",
+            "🤞", "🤟", "🤘", "🤙", "👋", "👏",
+            "🙌", "👐", "🤲", "🙏", "💪", "🫶",
+            "❤️", "🧡", "💛", "💚", "💙", "💜",
+            "🖤", "🤍", "🤎", "💔", "💕", "💞",
+            "💓", "💗", "💖", "💘", "💝", "💟",
+            "🔥", "✨", "⭐", "🌟", "💫", "🎉",
+            "🎊", "🎁", "🌹", "🌸", "🌺", "🌻",
+            "🍀", "🍓", "🍒", "🍕", "🍰", "☕",
+            "🍷", "🥂", "🎵", "🎶", "💯", "💋"
+        )
     }
 }

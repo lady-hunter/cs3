@@ -40,11 +40,12 @@
 
     <TextView
         android:id="@+id/tv_timestamp"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="4dp"
         android:layout_marginTop="2dp"
         android:layout_marginEnd="4dp"
+        android:gravity="start"
         android:textColor="#999999"
         android:textSize="11sp" />
 </LinearLayout>
