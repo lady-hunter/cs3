@@ -7,6 +7,14 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.Columns
+import kotlinx.serialization.Serializable
+
+@Serializable
+private data class SwipeAction(
+    val user_id: String,
+    val target_user_id: String,
+    val action: String
+)
 
 class ProfileRepository {
     private val client = SupabaseManager.client
@@ -75,6 +83,28 @@ class ProfileRepository {
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    suspend fun saveSwipeAction(
+        userId: String,
+        targetUserId: String,
+        action: String
+    ): Result<Unit> {
+        require(action == "like" || action == "skip")
+
+        return try {
+            client.postgrest["swipes"].insert(
+                SwipeAction(
+                    user_id = userId,
+                    target_user_id = targetUserId,
+                    action = action
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
         }
     }
 }

@@ -9,6 +9,7 @@ data class Profile(
     val avatar_url: String? = null,
     val gender: String? = null,
     val birth_date: String? = null,
+    val bio: String? = null,
 )
 
 @Serializable

@@ -5,4 +5,12 @@
     <string name="login_with_email">LOG IN WITH EMAIL</string>
     <string name="trouble_logging_in">Trouble Logging In?</string>
     <string name="terms_and_privacy">By clicking Log In, you agree with our Terms. Learn how we process your data in our Privacy Policy and Cookies Policy.</string>
+    <string name="like">Like</string>
+    <string name="skip">Skip</string>
+    <string name="no_profiles">No profiles are available right now.</string>
+    <string name="profiles_load_failed">Could not load profiles. Please try again later.</string>
+    <string name="swipe_save_failed">Could not save this action. Check the Supabase swipes table and policies.</string>
+    <string name="session_expired">Session expired. Please log in again.</string>
+    <string name="unknown_name">Unknown</string>
+    <string name="no_bio">No bio yet.</string>
 </resources>
