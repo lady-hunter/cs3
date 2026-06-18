@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -36,6 +37,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var adapter: MessageAdapter
     private lateinit var rvMessages: RecyclerView
     private lateinit var etMessage: EditText
+    private lateinit var btnEmoji: Button
     private lateinit var btnSend: Button
     private lateinit var btnLogout: Button
     private lateinit var currentUserId: String
@@ -61,6 +63,7 @@ class ChatActivity : AppCompatActivity() {
 
         rvMessages = findViewById(R.id.rv_messages)
         etMessage = findViewById(R.id.et_message)
+        btnEmoji = findViewById(R.id.btn_emoji)
         btnSend = findViewById(R.id.btn_send)
         btnLogout = findViewById(R.id.btn_logout)
 
@@ -68,6 +71,8 @@ class ChatActivity : AppCompatActivity() {
         setupRecyclerView()
         loadMessages()
         observeMessages()
+
+        btnEmoji.setOnClickListener { showEmojiPicker() }
 
         btnSend.setOnClickListener {
             val content = etMessage.text.toString().trim()
@@ -78,6 +83,22 @@ class ChatActivity : AppCompatActivity() {
 
         btnLogout.setOnClickListener {
             logout()
+        }
+    }
+
+    private fun showEmojiPicker() {
+        PopupMenu(this, btnEmoji).apply {
+            COMMON_EMOJIS.forEachIndexed { index, emoji ->
+                menu.add(0, index, index, emoji)
+            }
+            setOnMenuItemClickListener { item ->
+                val emoji = COMMON_EMOJIS[item.itemId]
+                val cursorPosition = etMessage.selectionStart.coerceAtLeast(0)
+                etMessage.text.insert(cursorPosition, emoji)
+                etMessage.requestFocus()
+                true
+            }
+            show()
         }
     }
 
@@ -176,7 +197,10 @@ class ChatActivity : AppCompatActivity() {
                     sender_id = currentUserId
                 )
                 supabase.postgrest["messages"].insert(message)
+                Log.d(TAG, "MESSAGE SENT SUCCESS senderId=$currentUserId")
                 etMessage.text.clear()
+                Log.d(TAG, "MESSAGE RELOAD AFTER SEND")
+                loadMessages()
             } catch (e: Exception) {
                 Toast.makeText(this@ChatActivity, "Failed to send", Toast.LENGTH_SHORT).show()
             }
@@ -199,5 +223,6 @@ class ChatActivity : AppCompatActivity() {
 
     private companion object {
         const val TAG = "ChatActivity"
+        val COMMON_EMOJIS = listOf("❤️", "😂", "😊", "😍", "👍", "🎉")
     }
 }

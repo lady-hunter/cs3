@@ -25,6 +25,8 @@ private data class MatchInsert(
     val user2_id: String
 )
 
+class DuplicateSwipeException : Exception("This profile was already swiped.")
+
 class ProfileRepository {
     private val client = SupabaseManager.client
 
@@ -66,16 +68,7 @@ class ProfileRepository {
                 .mapNotNull { it["target_user_id"] }
 
             val profiles = client.postgrest["profiles"]
-                .select(
-                    columns = Columns.list(
-                        "id",
-                        "full_name",
-                        "avatar_url",
-                        "gender",
-                        "birth_date",
-                        "bio"
-                    )
-                ) {
+                .select(columns = PROFILE_COLUMNS) {
                     filter {
                         neq("id", userId)
                         if (swipedUserIds.isNotEmpty()) {
@@ -120,10 +113,7 @@ class ProfileRepository {
             return Result.failure(IllegalArgumentException("User cannot swipe themselves."))
         }
 
-        Log.d(
-            TAG,
-            "SWIPE INSERT REQUEST userId=$userId targetUserId=$targetUserId action=$action"
-        )
+        Log.d(TAG, "SWIPE INSERT REQUEST userId=$userId targetUserId=$targetUserId action=$action")
 
         return try {
             val response = client.postgrest["swipes"].insert(
@@ -152,13 +142,21 @@ class ProfileRepository {
 
             Result.success(Unit)
         } catch (e: Exception) {
+            val failure = if (e.isDuplicateKeyViolation()) DuplicateSwipeException() else e
             Log.e(
                 TAG,
                 "SWIPE INSERT FAILED userId=$userId targetUserId=$targetUserId action=$action message=${e.message}",
                 e
             )
-            Result.failure(e)
+            Result.failure(failure)
         }
+    }
+
+    private fun Exception.isDuplicateKeyViolation(): Boolean {
+        val errorText = message.orEmpty()
+        return errorText.contains("23505") ||
+            errorText.contains("duplicate key", ignoreCase = true) ||
+            errorText.contains("unique constraint", ignoreCase = true)
     }
 
     suspend fun getMatchesForUser(userId: String): Result<List<MatchItem>> {
@@ -283,5 +281,13 @@ class ProfileRepository {
 
     private companion object {
         const val TAG = "ProfileRepository"
+        val PROFILE_COLUMNS = Columns.list(
+            "id",
+            "full_name",
+            "avatar_url",
+            "gender",
+            "birth_date",
+            "bio"
+        )
     }
 }

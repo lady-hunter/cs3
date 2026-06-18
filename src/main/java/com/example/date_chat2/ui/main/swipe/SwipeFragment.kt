@@ -13,6 +13,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.example.date_chat2.R
 import com.example.date_chat2.data.model.Profile
+import com.example.date_chat2.data.repository.DuplicateSwipeException
 import com.example.date_chat2.data.repository.ProfileRepository
 import com.example.date_chat2.network.SupabaseManager
 import com.yuyakaido.android.cardstackview.CardStackLayoutManager
@@ -152,7 +153,11 @@ class SwipeFragment : Fragment(), CardStackListener {
                     context?.let { context ->
                         Toast.makeText(
                             context,
-                            R.string.swipe_save_failed,
+                            if (error is DuplicateSwipeException) {
+                                "You already swiped this profile."
+                            } else {
+                                getString(R.string.swipe_save_failed)
+                            },
                             Toast.LENGTH_LONG
                         ).show()
                     }
