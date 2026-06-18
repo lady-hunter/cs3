@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.example.date_chat2.R
@@ -69,15 +70,18 @@ class SwipeFragment : Fragment(), CardStackListener {
     private fun loadProfiles() {
         val userId = SupabaseManager.client.auth.currentSessionOrNull()?.user?.id
         if (userId == null) {
+            Log.e(TAG, "SWIPE LOAD aborted because current user id is null")
             showMessage(getString(R.string.session_expired))
             return
         }
+        Log.d(TAG, "SWIPE LOAD currentUserId=$userId")
         currentUserId = userId
         setLoading(true)
 
         viewLifecycleOwner.lifecycleScope.launch {
             profileRepository.getProfilesForSwiping(userId)
                 .onSuccess { loadedProfiles ->
+                    Log.d(TAG, "SWIPE LOAD profilesLoaded=${loadedProfiles.size}")
                     profiles.clear()
                     profiles.addAll(loadedProfiles)
                     cardStackView?.adapter = ProfileCardAdapter(profiles)
@@ -85,6 +89,7 @@ class SwipeFragment : Fragment(), CardStackListener {
                     updateEmptyState()
                 }
                 .onFailure {
+                    Log.e(TAG, "SWIPE LOAD failed currentUserId=$userId", it)
                     setLoading(false)
                     showMessage(getString(R.string.profiles_load_failed))
                 }
@@ -110,13 +115,29 @@ class SwipeFragment : Fragment(), CardStackListener {
         val userId = currentUserId ?: return
         val action = if (direction == Direction.Right) "like" else "skip"
 
-        setActionButtonsEnabled(true)
-        updateEmptyState()
-
         if (view == null) return
         viewLifecycleOwner.lifecycleScope.launch {
+            Log.d(
+                TAG,
+                "SWIPE SAVE start currentUserId=$userId targetUserId=${profile.id} action=$action"
+            )
             profileRepository.saveSwipeAction(userId, profile.id, action)
-                .onFailure {
+                .onSuccess {
+                    Log.d(
+                        TAG,
+                        "SWIPE SAVE success currentUserId=$userId targetUserId=${profile.id} action=$action"
+                    )
+                    setActionButtonsEnabled(true)
+                    updateEmptyState()
+                }
+                .onFailure { error ->
+                    Log.e(
+                        TAG,
+                        "SWIPE SAVE failed currentUserId=$userId targetUserId=${profile.id} action=$action message=${error.message}",
+                        error
+                    )
+                    setActionButtonsEnabled(true)
+                    updateEmptyState()
                     context?.let { context ->
                         Toast.makeText(
                             context,
@@ -173,7 +194,7 @@ class SwipeFragment : Fragment(), CardStackListener {
     override fun onCardDisappeared(view: View, position: Int) = Unit
 
     override fun onDestroyView() {
-        cardStackView?.adapter = null
+        profiles.clear()
         cardStackView = null
         layoutManager = null
         loadingView = null
@@ -182,5 +203,9 @@ class SwipeFragment : Fragment(), CardStackListener {
         likeButton = null
         skipButton = null
         super.onDestroyView()
+    }
+
+    private companion object {
+        const val TAG = "SwipeFragment"
     }
 }

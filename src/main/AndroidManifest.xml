@@ -14,24 +14,19 @@
 
         <activity
             android:name=".ui.main.MainActivity"
-            android:exported="true"
-            android:launchMode="singleTop">
+            android:exported="false"
+            android:launchMode="singleTop" />
+        <activity
+            android:name=".ui.auth.EmailLoginActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <intent-filter android:label="filter_magic_link">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="io.supabase.chat2" android:host="login" />
-            </intent-filter>
         </activity>
 
-        <activity android:name=".ui.auth.EmailLoginActivity" />
-        <activity android:name=".ui.auth.PhoneLoginActivity" />
         <activity android:name=".ui.auth.ProfileSetupActivity" />
+        <activity android:name=".ui.auth.RegisterActivity" />
         <activity android:name=".ui.chat.ChatActivity" />
         <activity android:name=".ui.main.HomeActivity" />
     </application>

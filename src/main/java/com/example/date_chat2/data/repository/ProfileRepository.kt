@@ -1,5 +1,6 @@
 package com.example.date_chat2.data.repository
 
+import android.util.Log
 import com.example.date_chat2.data.model.Profile
 import com.example.date_chat2.data.model.ProfileUpdate
 import com.example.date_chat2.network.SupabaseManager
@@ -93,18 +94,35 @@ class ProfileRepository {
     ): Result<Unit> {
         require(action == "like" || action == "skip")
 
+        Log.d(
+            TAG,
+            "SWIPE INSERT REQUEST userId=$userId targetUserId=$targetUserId action=$action"
+        )
+
         return try {
-            client.postgrest["swipes"].insert(
+            val response = client.postgrest["swipes"].insert(
                 SwipeAction(
                     user_id = userId,
                     target_user_id = targetUserId,
                     action = action
                 )
             )
+            Log.d(
+                TAG,
+                "SWIPE INSERT SUCCESS userId=$userId targetUserId=$targetUserId action=$action response=$response"
+            )
             Result.success(Unit)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(
+                TAG,
+                "SWIPE INSERT FAILED userId=$userId targetUserId=$targetUserId action=$action message=${e.message}",
+                e
+            )
             Result.failure(e)
         }
+    }
+
+    private companion object {
+        const val TAG = "ProfileRepository"
     }
 }

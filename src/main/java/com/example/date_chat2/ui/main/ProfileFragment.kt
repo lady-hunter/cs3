@@ -16,6 +16,7 @@ import com.example.date_chat2.R
 import com.example.date_chat2.data.repository.ProfileRepository
 import com.example.date_chat2.network.SupabaseManager
 import com.example.date_chat2.ui.auth.ProfileSetupActivity
+import com.example.date_chat2.ui.auth.EmailLoginActivity
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -26,6 +27,7 @@ class ProfileFragment : Fragment() {
     private lateinit var ivAvatar: ImageView
     private lateinit var tvName: TextView
     private lateinit var tvDetails: TextView
+    private lateinit var tvBio: TextView
     private lateinit var btnEditProfile: Button
     private lateinit var btnLogout: Button
 
@@ -41,6 +43,7 @@ class ProfileFragment : Fragment() {
         ivAvatar = view.findViewById(R.id.iv_profile_avatar)
         tvName = view.findViewById(R.id.tv_profile_name)
         tvDetails = view.findViewById(R.id.tv_profile_details)
+        tvBio = view.findViewById(R.id.tv_profile_bio)
         btnEditProfile = view.findViewById(R.id.btn_edit_profile)
         btnLogout = view.findViewById(R.id.btn_logout)
 
@@ -52,9 +55,12 @@ class ProfileFragment : Fragment() {
             logout()
         }
 
-        loadProfileData()
-
         return view
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadProfileData()
     }
 
     private fun loadProfileData() {
@@ -65,11 +71,18 @@ class ProfileFragment : Fragment() {
             profile?.let {
                 tvName.text = it.full_name ?: "Unknown"
                 val age = calculateAge(it.birth_date)
-                tvDetails.text = "${it.gender?.replaceFirstChar { it.uppercase() }}, $age"
+                val details = listOfNotNull(
+                    it.gender?.replaceFirstChar { character -> character.uppercase() },
+                    age.takeIf { value -> value > 0 }?.toString()
+                )
+                tvDetails.text = details.joinToString(" | ")
+                tvBio.text = it.bio?.takeIf { bio -> bio.isNotBlank() }
+                    ?: getString(R.string.no_bio)
                 
                 Glide.with(this@ProfileFragment)
                     .load(it.avatar_url)
                     .placeholder(android.R.drawable.ic_menu_gallery)
+                    .error(android.R.drawable.ic_menu_gallery)
                     .into(ivAvatar)
             }
         }
@@ -98,7 +111,7 @@ class ProfileFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 supabase.auth.signOut()
-                val intent = Intent(requireContext(), MainActivity::class.java)
+                val intent = Intent(requireContext(), EmailLoginActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 startActivity(intent)
             } catch (e: Exception) {

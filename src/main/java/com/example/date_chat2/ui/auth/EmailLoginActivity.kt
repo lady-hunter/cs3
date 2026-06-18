@@ -2,14 +2,13 @@ package com.example.date_chat2.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.TextView
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatButton
-import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.example.date_chat2.R
 import com.example.date_chat2.network.SupabaseManager
@@ -20,104 +19,100 @@ import kotlinx.coroutines.launch
 
 class EmailLoginActivity : AppCompatActivity() {
 
-    private var isLoginMode = true
     private val supabase = SupabaseManager.client
+    private lateinit var emailInput: EditText
+    private lateinit var passwordInput: EditText
+    private lateinit var loginButton: AppCompatButton
+    private lateinit var registerButton: AppCompatButton
+    private lateinit var progressBar: ProgressBar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (supabase.auth.currentSessionOrNull()?.user != null) {
+            openHome()
+            return
+        }
+
         setContentView(R.layout.activity_email_login)
+        emailInput = findViewById(R.id.et_email)
+        passwordInput = findViewById(R.id.et_password)
+        loginButton = findViewById(R.id.btn_login)
+        registerButton = findViewById(R.id.btn_register)
+        progressBar = findViewById(R.id.pb_auth)
 
-        val btnBack = findViewById<ImageButton>(R.id.btn_back)
-        val btnAction = findViewById<AppCompatButton>(R.id.btn_action)
-        val etEmail = findViewById<EditText>(R.id.et_email)
-        val etPassword = findViewById<EditText>(R.id.et_password)
-        val etConfirmPassword = findViewById<EditText>(R.id.et_confirm_password)
-        val tvTitle = findViewById<TextView>(R.id.tv_title)
-        val tvSwitchMode = findViewById<TextView>(R.id.tv_switch_mode)
-
-        btnBack.setOnClickListener {
-            finish()
-        }
-
-        tvSwitchMode.setOnClickListener {
-            isLoginMode = !isLoginMode
-            if (isLoginMode) {
-                tvTitle.text = "Welcome Back"
-                btnAction.text = "LOG IN"
-                tvSwitchMode.text = "Don't have an account? Sign Up"
-                etConfirmPassword.isVisible = false
-            } else {
-                tvTitle.text = "Create Account"
-                btnAction.text = "SIGN UP"
-                tvSwitchMode.text = "Already have an account? Log In"
-                etConfirmPassword.isVisible = true
-            }
-        }
-
-        btnAction.setOnClickListener {
-            val email = etEmail.text.toString().trim()
-            val password = etPassword.text.toString().trim()
-            val confirmPassword = etConfirmPassword.text.toString().trim()
-
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            if (!isLoginMode) {
-                if (password != confirmPassword) {
-                    Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                if (password.length < 6) {
-                    Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                signUp(email, password)
-            } else {
-                login(email, password)
-            }
+        loginButton.setOnClickListener { login() }
+        registerButton.setOnClickListener {
+            startActivity(Intent(this, RegisterActivity::class.java))
         }
     }
 
-    private fun signUp(email: String, password: String) {
-        lifecycleScope.launch {
-            try {
-                supabase.auth.signUpWith(Email) {
-                    this.email = email
-                    this.password = password
-                }
-                Toast.makeText(this@EmailLoginActivity, "Registration successful! Check your email if verification is required.", Toast.LENGTH_LONG).show()
-                checkSessionAndNavigate()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this@EmailLoginActivity, "Sign Up Error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
+    private fun login() {
+        val email = emailInput.text.toString().trim()
+        val password = passwordInput.text.toString()
 
-    private fun login(email: String, password: String) {
+        if (email.isBlank()) {
+            Toast.makeText(this, R.string.enter_email, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (password.isBlank()) {
+            Toast.makeText(this, R.string.enter_password, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        setLoading(true)
         lifecycleScope.launch {
             try {
                 supabase.auth.signInWith(Email) {
                     this.email = email
                     this.password = password
                 }
-                checkSessionAndNavigate()
+                openHome()
             } catch (e: Exception) {
-                e.printStackTrace()
-                Toast.makeText(this@EmailLoginActivity, "Login Error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                Log.e(TAG, "Supabase email login failed", e)
+                Toast.makeText(
+                    this@EmailLoginActivity,
+                    friendlyLoginError(e),
+                    Toast.LENGTH_LONG
+                ).show()
+                setLoading(false)
             }
         }
     }
 
-    private fun checkSessionAndNavigate() {
-        lifecycleScope.launch {
-            val session = supabase.auth.currentSessionOrNull()
-            if (session?.user != null) {
-                startActivity(Intent(this@EmailLoginActivity, HomeActivity::class.java))
-                finish()
+    private fun friendlyLoginError(error: Exception): Int {
+        val message = error.message.orEmpty().lowercase()
+        return when {
+            "invalid login credentials" in message || "invalid_credentials" in message -> {
+                R.string.invalid_login
             }
+            "email not confirmed" in message || "confirmation" in message -> {
+                R.string.registration_requires_session
+            }
+            message.contains("unknown error url") ||
+                message.contains("unable to resolve host") ||
+                message.contains("failed to connect") ||
+                message.contains("timeout") ||
+                message.contains("socket") -> R.string.auth_connection_error
+            else -> R.string.login_error
         }
+    }
+
+    private fun setLoading(loading: Boolean) {
+        loginButton.isEnabled = !loading
+        registerButton.isEnabled = !loading
+        loginButton.text = if (loading) "" else getString(R.string.login)
+        progressBar.visibility = if (loading) View.VISIBLE else View.GONE
+    }
+
+    private fun openHome() {
+        startActivity(Intent(this, HomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        })
+        finish()
+    }
+
+    private companion object {
+        const val TAG = "EmailLoginActivity"
     }
 }
