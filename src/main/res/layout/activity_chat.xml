@@ -100,6 +100,15 @@
             android:padding="12dp"
             app:srcCompat="@drawable/ic_add_photo" />
 
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_video"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:backgroundTint="?attr/colorPrimary"
+            android:contentDescription="@string/choose_video"
+            android:padding="12dp"
+            app:srcCompat="@drawable/ic_add_video" />
+
         <EditText
             android:id="@+id/et_message"
             android:layout_width="0dp"

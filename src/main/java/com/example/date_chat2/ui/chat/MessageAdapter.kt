@@ -5,11 +5,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.example.date_chat2.R
 import com.example.date_chat2.data.Message
 import java.time.Instant
@@ -45,29 +47,38 @@ class MessageAdapter(private val currentUserId: String) :
     inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvSender: TextView = itemView.findViewById(R.id.tv_sender)
         private val tvContent: TextView = itemView.findViewById(R.id.tv_content)
+        private val mediaLayout: FrameLayout = itemView.findViewById(R.id.layout_message_media)
         private val ivImage: ImageView = itemView.findViewById(R.id.iv_message_image)
+        private val ivVideoPlay: ImageView = itemView.findViewById(R.id.iv_video_play)
         private val tvTimestamp: TextView = itemView.findViewById(R.id.tv_timestamp)
         private val layoutRoot: LinearLayout = itemView as LinearLayout
 
         fun bind(message: Message) {
             val isImage = message.message_type == MESSAGE_TYPE_IMAGE && !message.image_url.isNullOrBlank()
-            tvContent.visibility = if (isImage) View.GONE else View.VISIBLE
-            ivImage.visibility = if (isImage) View.VISIBLE else View.GONE
+            val isVideo = message.message_type == MESSAGE_TYPE_VIDEO && !message.image_url.isNullOrBlank()
+            val hasMedia = isImage || isVideo
+            tvContent.visibility = if (hasMedia) View.GONE else View.VISIBLE
+            mediaLayout.visibility = if (hasMedia) View.VISIBLE else View.GONE
+            ivVideoPlay.visibility = if (isVideo) View.VISIBLE else View.GONE
             tvContent.text = message.content
             tvContent.maxWidth = (itemView.resources.displayMetrics.widthPixels * 0.75f).toInt()
-            if (isImage) {
-                Glide.with(itemView)
+            if (hasMedia) {
+                val request = Glide.with(itemView)
                     .load(message.image_url)
                     .placeholder(android.R.drawable.ic_menu_gallery)
                     .error(android.R.drawable.ic_menu_report_image)
                     .centerCrop()
-                    .into(ivImage)
-                ivImage.setOnClickListener {
-                    openImagePreview(message.image_url)
+                if (isVideo) {
+                    request.apply(RequestOptions().frame(VIDEO_THUMBNAIL_TIME_US))
+                }
+                request.into(ivImage)
+                mediaLayout.setOnClickListener {
+                    if (isVideo) openVideoPlayer(message.image_url)
+                    else openImagePreview(message.image_url)
                 }
             } else {
                 Glide.with(itemView).clear(ivImage)
-                ivImage.setOnClickListener(null)
+                mediaLayout.setOnClickListener(null)
             }
             tvTimestamp.text = formatMessageTime(message.created_at)
             tvTimestamp.visibility = if (tvTimestamp.text.isEmpty()) View.GONE else View.VISIBLE
@@ -101,6 +112,16 @@ class MessageAdapter(private val currentUserId: String) :
                 .show(activity.supportFragmentManager, ImagePreviewDialogFragment.TAG)
         }
 
+        private fun openVideoPlayer(videoUrl: String?) {
+            if (videoUrl.isNullOrBlank()) return
+            val activity = itemView.context as? FragmentActivity ?: return
+            if (activity.supportFragmentManager.findFragmentByTag(VideoPlayerDialogFragment.TAG) != null) {
+                return
+            }
+            VideoPlayerDialogFragment.newInstance(videoUrl)
+                .show(activity.supportFragmentManager, VideoPlayerDialogFragment.TAG)
+        }
+
         private fun formatMessageTime(createdAt: String?): String {
             if (createdAt.isNullOrBlank()) return ""
 
@@ -113,6 +134,8 @@ class MessageAdapter(private val currentUserId: String) :
 
     private companion object {
         const val MESSAGE_TYPE_IMAGE = "image"
+        const val MESSAGE_TYPE_VIDEO = "video"
+        const val VIDEO_THUMBNAIL_TIME_US = 1_000_000L
         val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter
             .ofPattern("HH:mm")
             .withZone(ZoneId.systemDefault())

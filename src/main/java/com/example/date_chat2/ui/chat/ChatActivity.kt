@@ -1,8 +1,10 @@
 package com.example.date_chat2.ui.chat
 
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.util.Log
 import android.util.TypedValue
 import android.webkit.MimeTypeMap
@@ -49,6 +51,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var etMessage: EditText
     private lateinit var btnEmoji: Button
     private lateinit var btnImage: ImageButton
+    private lateinit var btnVideo: ImageButton
     private lateinit var btnSend: Button
     private lateinit var emojiPanel: View
     private lateinit var emojiGrid: GridLayout
@@ -59,6 +62,9 @@ class ChatActivity : AppCompatActivity() {
     private val supabase = SupabaseManager.client
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let(::sendImage)
+    }
+    private val videoPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let(::handleSelectedVideo)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,6 +99,7 @@ class ChatActivity : AppCompatActivity() {
         etMessage = findViewById(R.id.et_message)
         btnEmoji = findViewById(R.id.btn_emoji)
         btnImage = findViewById(R.id.btn_image)
+        btnVideo = findViewById(R.id.btn_video)
         btnSend = findViewById(R.id.btn_send)
         emojiPanel = findViewById(R.id.emoji_panel)
         emojiGrid = findViewById(R.id.emoji_grid)
@@ -106,6 +113,7 @@ class ChatActivity : AppCompatActivity() {
 
         btnEmoji.setOnClickListener { toggleEmojiPanel() }
         btnImage.setOnClickListener { imagePicker.launch("image/*") }
+        btnVideo.setOnClickListener { videoPicker.launch("video/*") }
 
         btnSend.setOnClickListener {
             val content = etMessage.text.toString().trim()
@@ -344,12 +352,106 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun handleSelectedVideo(uri: Uri) {
+        val sizeBytes = getContentSize(uri)
+        val durationMs = getVideoDuration(uri)
+        Log.d(TAG, "VIDEO SELECTED uri=$uri sizeBytes=$sizeBytes durationMs=$durationMs")
+
+        when {
+            sizeBytes < 0 -> Toast.makeText(this, R.string.video_read_failed, Toast.LENGTH_SHORT).show()
+            sizeBytes > MAX_VIDEO_SIZE_BYTES -> Toast.makeText(
+                this,
+                R.string.video_too_large,
+                Toast.LENGTH_LONG
+            ).show()
+            durationMs == null -> Toast.makeText(this, R.string.video_read_failed, Toast.LENGTH_SHORT).show()
+            durationMs > MAX_VIDEO_DURATION_MS -> Toast.makeText(
+                this,
+                R.string.video_too_long,
+                Toast.LENGTH_LONG
+            ).show()
+            else -> sendVideo(uri)
+        }
+    }
+
+    private fun getContentSize(uri: Uri): Long {
+        contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (sizeColumn >= 0 && cursor.moveToFirst() && !cursor.isNull(sizeColumn)) {
+                return cursor.getLong(sizeColumn)
+            }
+        }
+        return runCatching {
+            contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+        }.getOrDefault(-1L)
+    }
+
+    private fun getVideoDuration(uri: Uri): Long? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(this, uri)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        } catch (error: Exception) {
+            Log.e(TAG, "VIDEO METADATA FAILED uri=$uri", error)
+            null
+        } finally {
+            retriever.release()
+        }
+    }
+
+    private fun sendVideo(uri: Uri) {
+        lifecycleScope.launch {
+            btnVideo.isEnabled = false
+            try {
+                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: error("Unable to read selected video")
+                val extension = MimeTypeMap.getSingleton()
+                    .getExtensionFromMimeType(contentResolver.getType(uri))
+                    ?: "mp4"
+                val videoPath = "videos/$currentUserId/${UUID.randomUUID()}.$extension"
+                val bucket = supabase.storage[CHAT_IMAGES_BUCKET]
+
+                try {
+                    bucket.upload(videoPath, bytes)
+                    Log.d(TAG, "VIDEO UPLOAD SUCCESS path=$videoPath")
+                } catch (error: Exception) {
+                    Log.e(TAG, "VIDEO UPLOAD FAILURE path=$videoPath", error)
+                    throw error
+                }
+
+                val videoUrl = bucket.publicUrl(videoPath)
+                val message = Message(
+                    content = "",
+                    sender_id = currentUserId,
+                    receiver_id = matchedUserId,
+                    image_url = videoUrl,
+                    message_type = MESSAGE_TYPE_VIDEO
+                )
+                try {
+                    supabase.postgrest["messages"].insert(message)
+                    Log.d(TAG, "VIDEO MESSAGE INSERT SUCCESS receiver_id=$matchedUserId")
+                } catch (error: Exception) {
+                    Log.e(TAG, "VIDEO MESSAGE INSERT FAILURE receiver_id=$matchedUserId", error)
+                    throw error
+                }
+                loadMessages()
+            } catch (error: Exception) {
+                Toast.makeText(this@ChatActivity, R.string.video_send_failed, Toast.LENGTH_SHORT).show()
+            } finally {
+                btnVideo.isEnabled = true
+            }
+        }
+    }
+
     companion object {
         const val EXTRA_MATCHED_USER_ID = "matched_user_id"
         private const val TAG = "ChatActivity"
         private const val CHAT_IMAGES_BUCKET = "chat-images"
         private const val MESSAGE_TYPE_TEXT = "text"
         private const val MESSAGE_TYPE_IMAGE = "image"
+        private const val MESSAGE_TYPE_VIDEO = "video"
+        private const val MAX_VIDEO_DURATION_MS = 30_000L
+        private const val MAX_VIDEO_SIZE_BYTES = 20L * 1024L * 1024L
         private val COMMON_EMOJIS = listOf(
             "😀", "😃", "😄", "😁", "😆", "😅",
             "😂", "🤣", "😊", "😇", "🙂", "🙃",
