@@ -34,7 +34,6 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        // Mặc định chọn màn hình Swipe
         if (savedInstanceState == null) {
             bottomNavigation.selectedItemId = R.id.nav_swipe
         }

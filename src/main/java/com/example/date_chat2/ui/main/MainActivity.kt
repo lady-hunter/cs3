@@ -22,10 +22,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 1. Kiểm tra session hiện tại ngay lập tức
         checkSessionAndNavigate()
 
-        // 2. Xử lý Deep Link (khi quay lại từ Email)
         supabase.handleDeeplinks(intent) {
             checkSessionAndNavigate()
         }

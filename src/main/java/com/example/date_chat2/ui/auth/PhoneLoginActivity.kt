@@ -23,7 +23,6 @@ class PhoneLoginActivity : AppCompatActivity() {
         btnContinue.setOnClickListener {
             val phone = etPhone.text.toString()
             if (phone.isNotEmpty()) {
-                // TODO: Logic for Supabase Login/Signup will go here
             }
         }
     }

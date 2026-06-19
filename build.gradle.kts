@@ -46,20 +46,17 @@ dependencies {
     implementation("androidx.cardview:cardview:1.0.0")
     implementation(libs.cardStackView)
     
-    // Supabase
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.auth)
     implementation(libs.supabase.realtime)
     implementation(libs.supabase.storage)
     
-    // Ktor
     implementation(libs.ktor.android)
     implementation(libs.ktor.core)
     implementation(libs.ktor.negotiation)
     implementation(libs.ktor.json)
 
-    // Glide for Image Loading
     implementation(libs.glide)
 
     testImplementation(libs.junit)

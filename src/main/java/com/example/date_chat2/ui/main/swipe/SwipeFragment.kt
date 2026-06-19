@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.ProgressBar
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import android.util.Log
@@ -16,11 +17,14 @@ import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.example.date_chat2.R
 import com.example.date_chat2.data.model.Profile
+import com.example.date_chat2.data.model.SwipeFilterPreferences
 import com.example.date_chat2.data.repository.DuplicateSwipeException
 import com.example.date_chat2.data.repository.ProfileRepository
 import com.example.date_chat2.network.SupabaseManager
 import com.example.date_chat2.ui.chat.ChatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.yuyakaido.android.cardstackview.CardStackLayoutManager
 import com.yuyakaido.android.cardstackview.CardStackListener
 import com.yuyakaido.android.cardstackview.CardStackView
@@ -42,7 +46,9 @@ class SwipeFragment : Fragment(), CardStackListener {
     private var actionsView: View? = null
     private var likeButton: Button? = null
     private var skipButton: Button? = null
+    private var filterButton: Button? = null
     private var currentUserId: String? = null
+    private var currentPreferences = SwipeFilterPreferences()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -59,18 +65,24 @@ class SwipeFragment : Fragment(), CardStackListener {
         actionsView = view.findViewById(R.id.swipe_actions)
         likeButton = view.findViewById(R.id.btn_like)
         skipButton = view.findViewById(R.id.btn_skip)
+        filterButton = view.findViewById(R.id.btn_swipe_filters)
 
+        configureCardStack()
+
+        likeButton?.setOnClickListener { performSwipe(Direction.Right) }
+        skipButton?.setOnClickListener { performSwipe(Direction.Left) }
+        filterButton?.setOnClickListener { showFilterDialog() }
+
+        loadProfiles()
+    }
+
+    private fun configureCardStack() {
         layoutManager = CardStackLayoutManager(requireContext(), this).apply {
             setDirections(listOf(Direction.Left, Direction.Right))
             setCanScrollVertical(false)
             setSwipeableMethod(SwipeableMethod.AutomaticAndManual)
         }
         cardStackView?.layoutManager = layoutManager
-
-        likeButton?.setOnClickListener { performSwipe(Direction.Right) }
-        skipButton?.setOnClickListener { performSwipe(Direction.Left) }
-
-        loadProfiles()
     }
 
     private fun loadProfiles() {
@@ -85,7 +97,21 @@ class SwipeFragment : Fragment(), CardStackListener {
         setLoading(true)
 
         viewLifecycleOwner.lifecycleScope.launch {
-            profileRepository.getProfilesForSwiping(userId)
+            profileRepository.getSwipeFilterPreferences(userId)
+                .onSuccess { preferences ->
+                    currentPreferences = preferences
+                    loadCandidates(userId, preferences)
+                }
+                .onFailure {
+                    Log.e(TAG, "SWIPE FILTER LOAD failed currentUserId=$userId", it)
+                    setLoading(false)
+                    showMessage(getString(R.string.profiles_load_failed))
+                }
+        }
+    }
+
+    private suspend fun loadCandidates(userId: String, preferences: SwipeFilterPreferences) {
+        profileRepository.getProfilesForSwiping(userId, preferences)
                 .onSuccess { loadedProfiles ->
                     Log.d(TAG, "SWIPE LOAD profilesLoaded=${loadedProfiles.size}")
                     loadedProfiles.forEach { profile ->
@@ -97,6 +123,7 @@ class SwipeFragment : Fragment(), CardStackListener {
                     }
                     profiles.clear()
                     profiles.addAll(loadedProfiles)
+                    configureCardStack()
                     cardStackView?.adapter = ProfileCardAdapter(profiles)
                     setLoading(false)
                     updateEmptyState()
@@ -106,7 +133,93 @@ class SwipeFragment : Fragment(), CardStackListener {
                     setLoading(false)
                     showMessage(getString(R.string.profiles_load_failed))
                 }
+    }
+
+    private fun showFilterDialog() {
+        val userId = currentUserId ?: return
+        val dialogView = layoutInflater.inflate(R.layout.dialog_swipe_filters, null)
+        val genderGroup = dialogView.findViewById<RadioGroup>(R.id.rg_preferred_gender)
+        val minAgeLayout = dialogView.findViewById<TextInputLayout>(R.id.til_min_age)
+        val maxAgeLayout = dialogView.findViewById<TextInputLayout>(R.id.til_max_age)
+        val minAgeInput = dialogView.findViewById<TextInputEditText>(R.id.et_min_age)
+        val maxAgeInput = dialogView.findViewById<TextInputEditText>(R.id.et_max_age)
+
+        genderGroup.check(
+            when (currentPreferences.preferredGender) {
+                "male" -> R.id.rb_gender_male
+                "female" -> R.id.rb_gender_female
+                else -> R.id.rb_gender_any
+            }
+        )
+        minAgeInput.setText(currentPreferences.minAge.toString())
+        maxAgeInput.setText(currentPreferences.maxAge.toString())
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.swipe_filters)
+            .setView(dialogView)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.save, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener {
+                    minAgeLayout.error = null
+                    maxAgeLayout.error = null
+                    val minAge = minAgeInput.text?.toString()?.toIntOrNull()
+                    val maxAge = maxAgeInput.text?.toString()?.toIntOrNull()
+                    when {
+                        minAge == null || maxAge == null -> {
+                            minAgeLayout.error = getString(R.string.filter_age_required)
+                        }
+                        minAge < MIN_AGE -> {
+                            minAgeLayout.error = getString(R.string.filter_min_age_invalid)
+                        }
+                        maxAge < minAge || maxAge > MAX_AGE -> {
+                            maxAgeLayout.error = getString(R.string.filter_max_age_invalid)
+                        }
+                        else -> {
+                            val preferences = SwipeFilterPreferences(
+                                preferredGender = when (genderGroup.checkedRadioButtonId) {
+                                    R.id.rb_gender_male -> "male"
+                                    R.id.rb_gender_female -> "female"
+                                    else -> "any"
+                                },
+                                minAge = minAge,
+                                maxAge = maxAge
+                            )
+                            saveFilters(dialog, userId, preferences)
+                        }
+                    }
+                }
         }
+        dialog.show()
+    }
+
+    private fun saveFilters(
+        dialog: androidx.appcompat.app.AlertDialog,
+        userId: String,
+        preferences: SwipeFilterPreferences
+    ) {
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).isEnabled = false
+        viewLifecycleOwner.lifecycleScope.launch {
+            profileRepository.saveSwipeFilterPreferences(userId, preferences)
+                .onSuccess {
+                    currentPreferences = preferences
+                    dialog.dismiss()
+                    loadProfiles()
+                }
+                .onFailure {
+                    Log.e(TAG, "SWIPE FILTER SAVE failed currentUserId=$userId", it)
+                    dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                        .isEnabled = true
+                    showMessageToast(getString(R.string.filters_save_failed))
+                }
+        }
+    }
+
+    private fun showMessageToast(message: String) {
+        context?.let { Toast.makeText(it, message, Toast.LENGTH_LONG).show() }
     }
 
     private fun performSwipe(direction: Direction) {
@@ -266,6 +379,7 @@ class SwipeFragment : Fragment(), CardStackListener {
         actionsView = null
         likeButton = null
         skipButton = null
+        filterButton = null
         super.onDestroyView()
     }
 
@@ -273,5 +387,7 @@ class SwipeFragment : Fragment(), CardStackListener {
         const val TAG = "SwipeFragment"
         const val EXTRA_MATCHED_USER_ID = "matched_user_id"
         const val EXTRA_MATCHED_USER_NAME = "matched_user_name"
+        const val MIN_AGE = 18
+        const val MAX_AGE = 99
     }
 }
