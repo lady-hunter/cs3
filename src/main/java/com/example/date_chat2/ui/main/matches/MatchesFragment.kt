@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.date_chat2.R
 import com.example.date_chat2.data.model.MatchItem
 import com.example.date_chat2.data.repository.ProfileRepository
+import com.example.date_chat2.data.repository.NotificationRepository
 import com.example.date_chat2.network.SupabaseManager
 import com.example.date_chat2.ui.chat.ChatActivity
 import io.github.jan.supabase.auth.auth
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 class MatchesFragment : Fragment() {
 
     private val profileRepository = ProfileRepository()
+    private val notificationRepository = NotificationRepository()
     private val supabase = SupabaseManager.client
     private val adapter = MatchAdapter { match -> openChat(match.otherUserId) }
 
@@ -68,10 +70,16 @@ class MatchesFragment : Fragment() {
         setLoading(true)
 
         viewLifecycleOwner.lifecycleScope.launch {
+            val unreadCounts = runCatching {
+                notificationRepository.getUnreadMessageCounts(userId)
+            }.getOrElse {
+                Log.e(TAG, "Failed to load unread message counts", it)
+                emptyMap()
+            }
             profileRepository.getMatchesForUser(userId)
                 .onSuccess { items ->
                     matches = items
-                    adapter.submitList(items)
+                    adapter.submitList(items, unreadCounts)
                     Log.d(TAG, "MATCH TAB loaded count=${items.size}")
                     if (items.isEmpty()) {
                         showEmptyState(getString(R.string.no_matches))

@@ -398,7 +398,7 @@ class ProfileRepository {
             "full_name",
             "avatar_url",
             "gender",
-            "birth_date",
+            "birth_dateMFWE",
             "bio"
         )
         val SWIPE_FILTER_COLUMNS = Columns.list("preferred_gender", "min_age", "max_age")

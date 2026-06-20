@@ -1,6 +1,9 @@
 package com.example.date_chat2.ui.chat
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
@@ -14,19 +17,25 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.GridLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
+import androidx.core.os.CancellationSignal
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.example.date_chat2.R
 import com.example.date_chat2.data.Message
 import com.example.date_chat2.data.model.Profile
+import com.example.date_chat2.data.repository.NotificationRepository
 import com.example.date_chat2.network.SupabaseManager
 import com.example.date_chat2.ui.main.MainActivity
 import io.github.jan.supabase.auth.auth
@@ -40,9 +49,11 @@ import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.Locale
 
 class ChatActivity : AppCompatActivity() {
 
@@ -50,21 +61,38 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var rvMessages: RecyclerView
     private lateinit var etMessage: EditText
     private lateinit var btnEmoji: Button
-    private lateinit var btnImage: ImageButton
-    private lateinit var btnVideo: ImageButton
-    private lateinit var btnSend: Button
+    private lateinit var btnImage: Button
+    private lateinit var btnVideo: Button
+    private lateinit var btnLocation: Button
+    private lateinit var btnAttachments: ImageButton
+    private lateinit var btnSend: ImageButton
+    private lateinit var attachmentPanel: View
     private lateinit var emojiPanel: View
     private lateinit var emojiGrid: GridLayout
-    private lateinit var btnLogout: Button
+    private lateinit var chatAvatar: ImageView
+    private lateinit var chatName: TextView
+    private lateinit var chatStatus: TextView
     private lateinit var currentUserId: String
     private lateinit var matchedUserId: String
     
     private val supabase = SupabaseManager.client
+    private val notificationRepository = NotificationRepository()
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let(::sendImage)
     }
     private val videoPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let(::handleSelectedVideo)
+    }
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) {
+            shareCurrentLocation()
+        } else {
+            Toast.makeText(this, R.string.location_permission_denied, Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,20 +128,41 @@ class ChatActivity : AppCompatActivity() {
         btnEmoji = findViewById(R.id.btn_emoji)
         btnImage = findViewById(R.id.btn_image)
         btnVideo = findViewById(R.id.btn_video)
+        btnLocation = findViewById(R.id.btn_location)
+        btnAttachments = findViewById(R.id.btn_attachments)
         btnSend = findViewById(R.id.btn_send)
+        attachmentPanel = findViewById(R.id.attachment_panel)
         emojiPanel = findViewById(R.id.emoji_panel)
         emojiGrid = findViewById(R.id.emoji_grid)
-        btnLogout = findViewById(R.id.btn_logout)
+        chatAvatar = findViewById(R.id.iv_chat_avatar)
+        chatName = findViewById(R.id.tv_chat_name)
+        chatStatus = findViewById(R.id.tv_chat_status)
 
         setupWindowInsets()
+        setupChatHeader()
         setupEmojiPanel()
         setupRecyclerView()
+        markConversationRead()
         loadMessages()
         observeMessages()
 
-        btnEmoji.setOnClickListener { toggleEmojiPanel() }
-        btnImage.setOnClickListener { imagePicker.launch("image/*") }
-        btnVideo.setOnClickListener { videoPicker.launch("video/*") }
+        btnAttachments.setOnClickListener { toggleAttachmentPanel() }
+        btnEmoji.setOnClickListener {
+            closeAttachmentPanel()
+            toggleEmojiPanel()
+        }
+        btnImage.setOnClickListener {
+            closeAttachmentPanel()
+            imagePicker.launch("image/*")
+        }
+        btnVideo.setOnClickListener {
+            closeAttachmentPanel()
+            videoPicker.launch("video/*")
+        }
+        btnLocation.setOnClickListener {
+            closeAttachmentPanel()
+            requestAndShareLocation()
+        }
 
         btnSend.setOnClickListener {
             val content = etMessage.text.toString().trim()
@@ -122,8 +171,54 @@ class ChatActivity : AppCompatActivity() {
             }
         }
 
-        btnLogout.setOnClickListener {
-            logout()
+    }
+
+    private fun setupChatHeader() {
+        findViewById<ImageButton>(R.id.btn_back).setOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
+
+        lifecycleScope.launch {
+            try {
+                val profile = supabase.postgrest["profiles"]
+                    .select(
+                        columns = Columns.list(
+                            "id",
+                            "full_name",
+                            "avatar_url",
+                            "is_online",
+                            "last_seen"
+                        )
+                    ) {
+                        filter { eq("id", matchedUserId) }
+                    }
+                    .decodeSingle<ChatHeaderProfile>()
+
+                chatName.text = profile.full_name?.takeIf { it.isNotBlank() }
+                    ?: getString(R.string.unknown_name)
+                val statusRes = if (profile.is_online == true) {
+                    R.string.online
+                } else {
+                    R.string.last_seen_recently
+                }
+                chatStatus.setText(statusRes)
+                chatStatus.setTextColor(
+                    ContextCompat.getColor(
+                        this@ChatActivity,
+                        if (profile.is_online == true) R.color.green_like else R.color.text_secondary
+                    )
+                )
+                Glide.with(this@ChatActivity)
+                    .load(profile.avatar_url)
+                    .placeholder(R.drawable.bg_avatar_placeholder)
+                    .error(R.drawable.bg_avatar_placeholder)
+                    .centerCrop()
+                    .into(chatAvatar)
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to load chat header", error)
+                chatName.setText(R.string.unknown_name)
+                chatStatus.setText(R.string.last_seen_recently)
+            }
         }
     }
 
@@ -157,6 +252,23 @@ class ChatActivity : AppCompatActivity() {
 
     private fun toggleEmojiPanel() {
         emojiPanel.visibility = if (emojiPanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+    }
+
+    private fun toggleAttachmentPanel() {
+        val showPanel = attachmentPanel.visibility != View.VISIBLE
+        attachmentPanel.visibility = if (showPanel) View.VISIBLE else View.GONE
+        btnAttachments.setImageResource(
+            if (showPanel) R.drawable.ic_close else R.drawable.ic_add_circle
+        )
+        btnAttachments.contentDescription = getString(
+            if (showPanel) R.string.close_attachments else R.string.attachments
+        )
+    }
+
+    private fun closeAttachmentPanel() {
+        attachmentPanel.visibility = View.GONE
+        btnAttachments.setImageResource(R.drawable.ic_add_circle)
+        btnAttachments.contentDescription = getString(R.string.attachments)
     }
 
     private fun insertEmoji(emoji: String) {
@@ -263,11 +375,22 @@ class ChatActivity : AppCompatActivity() {
         }
 
         changeFlow.onEach {
+            markConversationRead()
             loadMessages()
         }.launchIn(lifecycleScope)
 
         lifecycleScope.launch {
             channel.subscribe()
+        }
+    }
+
+    private fun markConversationRead() {
+        lifecycleScope.launch {
+            try {
+                notificationRepository.markConversationRead(currentUserId, matchedUserId)
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to mark conversation as read", error)
+            }
         }
     }
 
@@ -289,24 +412,11 @@ class ChatActivity : AppCompatActivity() {
                 supabase.postgrest["messages"].insert(message)
                 Log.d(TAG, "MESSAGE SENT SUCCESS senderId=$currentUserId receiver_id=$matchedUserId")
                 etMessage.text.clear()
+                emojiPanel.visibility = View.GONE
                 Log.d(TAG, "MESSAGE RELOAD AFTER SEND")
                 loadMessages()
             } catch (e: Exception) {
                 Toast.makeText(this@ChatActivity, "Failed to send", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun logout() {
-        lifecycleScope.launch {
-            try {
-                supabase.auth.signOut()
-                val intent = Intent(this@ChatActivity, MainActivity::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                startActivity(intent)
-                finish()
-            } catch (e: Exception) {
-                Toast.makeText(this@ChatActivity, "Logout failed", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -443,6 +553,104 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun requestAndShareLocation() {
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFineLocation || hasCoarseLocation) {
+            shareCurrentLocation()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun shareCurrentLocation() {
+        val locationManager = getSystemService(LocationManager::class.java)
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val provider = when {
+            hasFineLocation && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> {
+                LocationManager.GPS_PROVIDER
+            }
+            locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> {
+                LocationManager.NETWORK_PROVIDER
+            }
+            else -> null
+        }
+
+        if (provider == null) {
+            Toast.makeText(this, R.string.location_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        btnLocation.isEnabled = false
+        try {
+            LocationManagerCompat.getCurrentLocation(
+                locationManager,
+                provider,
+                CancellationSignal(),
+                ContextCompat.getMainExecutor(this)
+            ) { location ->
+                if (location == null) {
+                    btnLocation.isEnabled = true
+                    Toast.makeText(this, R.string.location_unavailable, Toast.LENGTH_LONG).show()
+                    return@getCurrentLocation
+                }
+                val mapsLink = String.format(
+                    Locale.US,
+                    "https://maps.google.com/?q=%.6f,%.6f",
+                    location.latitude,
+                    location.longitude
+                )
+                sendLocationMessage(mapsLink)
+            }
+        } catch (error: SecurityException) {
+            btnLocation.isEnabled = true
+            Toast.makeText(this, R.string.location_permission_denied, Toast.LENGTH_LONG).show()
+        } catch (error: Exception) {
+            btnLocation.isEnabled = true
+            Log.e(TAG, "LOCATION LOOKUP FAILED", error)
+            Toast.makeText(this, R.string.location_unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun sendLocationMessage(mapsLink: String) {
+        lifecycleScope.launch {
+            try {
+                val message = Message(
+                    content = mapsLink,
+                    sender_id = currentUserId,
+                    receiver_id = matchedUserId,
+                    message_type = MESSAGE_TYPE_LOCATION
+                )
+                supabase.postgrest["messages"].insert(message)
+                loadMessages()
+            } catch (error: Exception) {
+                Log.e(TAG, "LOCATION MESSAGE FAILED receiver_id=$matchedUserId", error)
+                Toast.makeText(
+                    this@ChatActivity,
+                    R.string.location_send_failed,
+                    Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                btnLocation.isEnabled = true
+            }
+        }
+    }
+
     companion object {
         const val EXTRA_MATCHED_USER_ID = "matched_user_id"
         private const val TAG = "ChatActivity"
@@ -450,6 +658,7 @@ class ChatActivity : AppCompatActivity() {
         private const val MESSAGE_TYPE_TEXT = "text"
         private const val MESSAGE_TYPE_IMAGE = "image"
         private const val MESSAGE_TYPE_VIDEO = "video"
+        private const val MESSAGE_TYPE_LOCATION = "location"
         private const val MAX_VIDEO_DURATION_MS = 30_000L
         private const val MAX_VIDEO_SIZE_BYTES = 20L * 1024L * 1024L
         private val COMMON_EMOJIS = listOf(
@@ -480,3 +689,12 @@ class ChatActivity : AppCompatActivity() {
         )
     }
 }
+
+@Serializable
+private data class ChatHeaderProfile(
+    val id: String,
+    val full_name: String? = null,
+    val avatar_url: String? = null,
+    val is_online: Boolean? = null,
+    val last_seen: String? = null
+)

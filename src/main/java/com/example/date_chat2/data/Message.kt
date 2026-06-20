@@ -10,5 +10,6 @@ data class Message(
     val sender_id: String,
     val receiver_id: String,
     val image_url: String? = null,
-    val message_type: String = "text"
+    val message_type: String = "text",
+    val is_read: Boolean = false
 )

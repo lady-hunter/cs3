@@ -1,13 +1,18 @@
 package com.example.date_chat2.ui.chat
 
 import android.app.Dialog
+import android.app.DownloadManager
+import android.content.Context
 import android.os.Bundle
+import android.os.Environment
+import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import com.bumptech.glide.Glide
 import com.example.date_chat2.R
@@ -39,6 +44,9 @@ class ImagePreviewDialogFragment : DialogFragment() {
         view.findViewById<ImageButton>(R.id.btn_close_preview).setOnClickListener {
             dismiss()
         }
+        view.findViewById<ImageButton>(R.id.btn_download_image).setOnClickListener {
+            downloadImage(imageUrl)
+        }
 
         Glide.with(this)
             .load(imageUrl)
@@ -46,6 +54,33 @@ class ImagePreviewDialogFragment : DialogFragment() {
             .error(android.R.drawable.ic_menu_report_image)
             .fitCenter()
             .into(imageView)
+    }
+
+    private fun downloadImage(imageUrl: String) {
+        if (imageUrl.isBlank()) return
+
+        try {
+            val fileName = "date_chat_${System.currentTimeMillis()}.jpg"
+            val request = DownloadManager.Request(Uri.parse(imageUrl))
+                .setTitle(fileName)
+                .setMimeType("image/jpeg")
+                .setNotificationVisibility(
+                    DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                )
+                .setDestinationInExternalFilesDir(
+                    requireContext(),
+                    Environment.DIRECTORY_PICTURES,
+                    fileName
+                )
+            val downloadManager = requireContext()
+                .getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            downloadManager.enqueue(request)
+            Toast.makeText(requireContext(), R.string.image_download_started, Toast.LENGTH_SHORT)
+                .show()
+        } catch (_: Exception) {
+            Toast.makeText(requireContext(), R.string.image_download_failed, Toast.LENGTH_SHORT)
+                .show()
+        }
     }
 
     companion object {

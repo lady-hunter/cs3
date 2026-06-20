@@ -11,14 +11,31 @@
         android:contentDescription="Full-screen chat image"
         android:scaleType="fitCenter" />
 
-    <ImageButton
-        android:id="@+id/btn_close_preview"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_margin="16dp"
-        android:backgroundTint="#CCFFFFFF"
-        android:contentDescription="Close image preview"
-        android:padding="12dp"
-        android:src="@drawable/ic_close" />
+        android:background="@drawable/bg_attachment_action"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/btn_download_image"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/download_image"
+            android:padding="12dp"
+            android:src="@drawable/ic_download" />
+
+        <ImageButton
+            android:id="@+id/btn_close_preview"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/close_image_preview"
+            android:padding="12dp"
+            android:src="@drawable/ic_close"
+            android:tint="?attr/colorPrimary" />
+    </LinearLayout>
 </FrameLayout>

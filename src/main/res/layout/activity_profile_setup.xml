@@ -32,11 +32,20 @@
             android:textColor="@color/text_secondary"
             android:textSize="15sp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/profile_photo"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
         <FrameLayout
             android:id="@+id/layout_image"
             android:layout_width="164dp"
             android:layout_height="164dp"
-            android:layout_marginTop="24dp">
+            android:layout_marginTop="12dp">
 
             <androidx.cardview.widget.CardView
                 android:layout_width="148dp"
@@ -80,39 +89,58 @@
             android:textColor="@color/tinder_pink"
             android:textStyle="bold" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/full_name"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:hint="@string/full_name"
+            android:layout_marginTop="8dp"
             app:boxBackgroundColor="@color/white"
             app:boxCornerRadiusBottomEnd="16dp"
             app:boxCornerRadiusBottomStart="16dp"
             app:boxCornerRadiusTopEnd="16dp"
-            app:boxCornerRadiusTopStart="16dp">
+            app:boxCornerRadiusTopStart="16dp"
+            app:hintEnabled="false">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_full_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:hint="@string/full_name"
                 android:inputType="textPersonName"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/birth_date"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:hint="@string/birth_date"
+            android:layout_marginTop="8dp"
             app:boxBackgroundColor="@color/white"
             app:boxCornerRadiusBottomEnd="16dp"
             app:boxCornerRadiusBottomStart="16dp"
             app:boxCornerRadiusTopEnd="16dp"
             app:boxCornerRadiusTopStart="16dp"
             app:endIconDrawable="@android:drawable/ic_menu_my_calendar"
-            app:endIconMode="custom">
+            app:endIconMode="custom"
+            app:hintEnabled="false">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_birth_date"
@@ -120,30 +148,31 @@
                 android:layout_height="wrap_content"
                 android:cursorVisible="false"
                 android:focusable="false"
-                android:hint="YYYY-MM-DD" />
+                android:hint="@string/birth_date_placeholder" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/gender"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="8dp"
             android:background="@drawable/bg_white_card"
             android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/gender"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp">
 
             <RadioGroup
                 android:id="@+id/rg_gender"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
                 android:orientation="horizontal">
 
                 <RadioButton
@@ -164,19 +193,28 @@
             </RadioGroup>
         </LinearLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/short_bio"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:hint="@string/short_bio"
+            android:layout_marginTop="8dp"
             app:boxBackgroundColor="@color/white"
             app:boxCornerRadiusBottomEnd="16dp"
             app:boxCornerRadiusBottomStart="16dp"
             app:boxCornerRadiusTopEnd="16dp"
             app:boxCornerRadiusTopStart="16dp"
             app:counterEnabled="true"
-            app:counterMaxLength="160">
+            app:counterMaxLength="160"
+            app:hintEnabled="false">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_bio"

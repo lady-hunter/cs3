@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -29,11 +30,15 @@
         android:paddingBottom="8dp"
         android:textSize="16sp" />
 
-    <FrameLayout
+    <androidx.cardview.widget.CardView
         android:id="@+id/layout_message_media"
-        android:layout_width="220dp"
-        android:layout_height="180dp"
-        android:visibility="gone">
+        android:layout_width="240dp"
+        android:layout_height="240dp"
+        android:clipToOutline="true"
+        android:visibility="gone"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:cardPreventCornerOverlap="false">
 
         <ImageView
             android:id="@+id/iv_message_image"
@@ -51,11 +56,11 @@
             android:contentDescription="@string/play_video"
             android:src="@drawable/ic_play_circle"
             android:visibility="gone" />
-    </FrameLayout>
+    </androidx.cardview.widget.CardView>
 
     <TextView
         android:id="@+id/tv_timestamp"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="4dp"
         android:layout_marginTop="2dp"

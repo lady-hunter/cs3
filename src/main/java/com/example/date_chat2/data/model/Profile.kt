@@ -10,6 +10,8 @@ data class Profile(
     val gender: String? = null,
     val birth_date: String? = null,
     val bio: String? = null,
+    val is_online: Boolean? = null,
+    val last_seen: String? = null,
     val preferred_gender: String? = "any",
     val min_age: Int? = 18,
     val max_age: Int? = 99,

@@ -1,5 +1,8 @@
 package com.example.date_chat2.ui.chat
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -8,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
@@ -56,11 +60,23 @@ class MessageAdapter(private val currentUserId: String) :
         fun bind(message: Message) {
             val isImage = message.message_type == MESSAGE_TYPE_IMAGE && !message.image_url.isNullOrBlank()
             val isVideo = message.message_type == MESSAGE_TYPE_VIDEO && !message.image_url.isNullOrBlank()
+            val isLocation = message.message_type == MESSAGE_TYPE_LOCATION && message.content.isNotBlank()
             val hasMedia = isImage || isVideo
             tvContent.visibility = if (hasMedia) View.GONE else View.VISIBLE
             mediaLayout.visibility = if (hasMedia) View.VISIBLE else View.GONE
             ivVideoPlay.visibility = if (isVideo) View.VISIBLE else View.GONE
-            tvContent.text = message.content
+            tvContent.text = if (isLocation) {
+                itemView.context.getString(
+                    R.string.shared_location_message,
+                    itemView.context.getString(R.string.shared_location),
+                    itemView.context.getString(R.string.open_shared_location)
+                )
+            } else {
+                message.content
+            }
+            tvContent.setOnClickListener(
+                if (isLocation) View.OnClickListener { openLocation(message.content) } else null
+            )
             tvContent.maxWidth = (itemView.resources.displayMetrics.widthPixels * 0.75f).toInt()
             if (hasMedia) {
                 val request = Glide.with(itemView)
@@ -122,6 +138,18 @@ class MessageAdapter(private val currentUserId: String) :
                 .show(activity.supportFragmentManager, VideoPlayerDialogFragment.TAG)
         }
 
+        private fun openLocation(mapsLink: String) {
+            try {
+                itemView.context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(mapsLink)))
+            } catch (error: ActivityNotFoundException) {
+                Toast.makeText(
+                    itemView.context,
+                    R.string.location_open_failed,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
         private fun formatMessageTime(createdAt: String?): String {
             if (createdAt.isNullOrBlank()) return ""
 
@@ -135,6 +163,7 @@ class MessageAdapter(private val currentUserId: String) :
     private companion object {
         const val MESSAGE_TYPE_IMAGE = "image"
         const val MESSAGE_TYPE_VIDEO = "video"
+        const val MESSAGE_TYPE_LOCATION = "location"
         const val VIDEO_THUMBNAIL_TIME_US = 1_000_000L
         val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter
             .ofPattern("HH:mm")
