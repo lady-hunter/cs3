@@ -43,11 +43,15 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.decodeRecord
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -74,6 +78,10 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var chatStatus: TextView
     private lateinit var currentUserId: String
     private lateinit var matchedUserId: String
+    private var messagePollingJob: Job? = null
+    private var isLoadingMessages = false
+    private var lastMessageCount = -1
+    private var lastMessageId: Long? = null
     
     private val supabase = SupabaseManager.client
     private val notificationRepository = NotificationRepository()
@@ -171,6 +179,30 @@ class ChatActivity : AppCompatActivity() {
             }
         }
 
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::currentUserId.isInitialized && ::matchedUserId.isInitialized && ::adapter.isInitialized) {
+            loadMessages()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (::currentUserId.isInitialized && ::matchedUserId.isInitialized && ::adapter.isInitialized) {
+            startMessagePolling()
+        }
+    }
+
+    override fun onStop() {
+        stopMessagePolling()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        stopMessagePolling()
+        super.onDestroy()
     }
 
     private fun setupChatHeader() {
@@ -310,6 +342,8 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun loadMessages() {
+        if (isLoadingMessages) return
+        isLoadingMessages = true
         lifecycleScope.launch {
             try {
                 val messages = supabase.postgrest["messages"]
@@ -334,15 +368,47 @@ class ChatActivity : AppCompatActivity() {
                     )
 
                 Log.d(TAG, "loaded message count=${messages.size}")
+                val newestMessageId = messages.lastOrNull()?.id
+                val messagesChanged = messages.size != lastMessageCount ||
+                    newestMessageId != lastMessageId
+                if (!messagesChanged) return@launch
+
+                val shouldScrollToBottom = isUserNearBottom()
                 val senderNames = loadSenderNames(messages.map { it.sender_id }.distinct())
                 adapter.submitList(messages, senderNames)
-                if (messages.isNotEmpty()) {
+                lastMessageCount = messages.size
+                lastMessageId = newestMessageId
+                if (messages.isNotEmpty() && shouldScrollToBottom) {
                     rvMessages.scrollToPosition(messages.size - 1)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to load messages", e)
+            } finally {
+                isLoadingMessages = false
             }
         }
+    }
+
+    private fun isUserNearBottom(): Boolean {
+        if (adapter.itemCount == 0) return true
+        val layoutManager = rvMessages.layoutManager as? LinearLayoutManager ?: return true
+        return layoutManager.findLastVisibleItemPosition() >=
+            adapter.itemCount - NEAR_BOTTOM_THRESHOLD
+    }
+
+    private fun startMessagePolling() {
+        if (messagePollingJob?.isActive == true) return
+        messagePollingJob = lifecycleScope.launch {
+            while (isActive) {
+                loadMessages()
+                delay(MESSAGE_POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopMessagePolling() {
+        messagePollingJob?.cancel()
+        messagePollingJob = null
     }
 
     private suspend fun loadSenderNames(senderIds: List<String>): Map<String, String> {
@@ -369,18 +435,35 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun observeMessages() {
-        val channel = supabase.realtime.channel("chat")
-        val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+        val channel = supabase.realtime.channel("chat-$currentUserId-$matchedUserId")
+        val changeFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
             table = "messages"
         }
 
-        changeFlow.onEach {
-            markConversationRead()
-            loadMessages()
+        changeFlow.onEach { insert ->
+            Log.d(TAG, "realtime insert received")
+            val message = insert.decodeRecord<Message>()
+            val belongsToCurrentConversation =
+                (message.sender_id == currentUserId && message.receiver_id == matchedUserId) ||
+                    (message.sender_id == matchedUserId && message.receiver_id == currentUserId)
+            Log.d(
+                TAG,
+                "realtime insert belongsToCurrentConversation=$belongsToCurrentConversation"
+            )
+            if (belongsToCurrentConversation) {
+                markConversationRead()
+                Log.d(TAG, "reload triggered by realtime")
+                loadMessages()
+            }
         }.launchIn(lifecycleScope)
 
         lifecycleScope.launch {
-            channel.subscribe()
+            try {
+                channel.subscribe()
+                Log.d(TAG, "realtime subscribed")
+            } catch (error: Exception) {
+                Log.e(TAG, "Failed to subscribe to chat realtime", error)
+            }
         }
     }
 
@@ -659,6 +742,8 @@ class ChatActivity : AppCompatActivity() {
         private const val MESSAGE_TYPE_IMAGE = "image"
         private const val MESSAGE_TYPE_VIDEO = "video"
         private const val MESSAGE_TYPE_LOCATION = "location"
+        private const val MESSAGE_POLL_INTERVAL_MS = 2_000L
+        private const val NEAR_BOTTOM_THRESHOLD = 3
         private const val MAX_VIDEO_DURATION_MS = 30_000L
         private const val MAX_VIDEO_SIZE_BYTES = 20L * 1024L * 1024L
         private val COMMON_EMOJIS = listOf(
